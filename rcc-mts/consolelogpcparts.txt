@@ -1,0 +1,71 @@
+Fetching from URL: http://192.168.100.76:3001/pc-parts/asset/CCSPCUNIT-1
+report-management.jsx:286 pcParts state: 
+(2) [{…}, {…}]
+0
+: 
+{id: 1, department_id: 1, asset_item_code: 'CCSPCUNIT-1', part_name: 'RAM', date_acquired: '2025-09-16', …}
+1
+: 
+{id: 2, department_id: 1, asset_item_code: 'CCSPCUNIT-1', part_name: 'GPU', date_acquired: '2025-09-16', …}
+length
+: 
+2
+[[Prototype]]
+: 
+Array(0)
+report-management.jsx:286 pcParts state: 
+(2) [{…}, {…}]
+0
+: 
+{id: 1, department_id: 1, asset_item_code: 'CCSPCUNIT-1', part_name: 'RAM', date_acquired: '2025-09-16', …}
+1
+: 
+{id: 2, department_id: 1, asset_item_code: 'CCSPCUNIT-1', part_name: 'GPU', date_acquired: '2025-09-16', …}
+length
+: 
+2
+[[Prototype]]
+: 
+Array(0)
+report-management.jsx:156 PC parts response: 
+(2) [{…}, {…}]
+0
+: 
+{id: 1, department_id: 1, asset_item_code: 'CCSPCUNIT-1', part_name: 'RAM', date_acquired: '2025-09-16', …}
+1
+: 
+{id: 2, department_id: 1, asset_item_code: 'CCSPCUNIT-1', part_name: 'GPU', date_acquired: '2025-09-16', …}
+length
+: 
+2
+[[Prototype]]
+: 
+Array(0)
+report-management.jsx:286 pcParts state: 
+(2) [{…}, {…}]
+0
+: 
+{id: 1, department_id: 1, asset_item_code: 'CCSPCUNIT-1', part_name: 'RAM', date_acquired: '2025-09-16', …}
+1
+: 
+{id: 2, department_id: 1, asset_item_code: 'CCSPCUNIT-1', part_name: 'GPU', date_acquired: '2025-09-16', …}
+length
+: 
+2
+[[Prototype]]
+: 
+Array(0)
+report-management.jsx:286 pcParts state: 
+(2) [{…}, {…}]
+0
+: 
+{id: 1, department_id: 1, asset_item_code: 'CCSPCUNIT-1', part_name: 'RAM', date_acquired: '2025-09-16', …}
+1
+: 
+{id: 2, department_id: 1, asset_item_code: 'CCSPCUNIT-1', part_name: 'GPU', date_acquired: '2025-09-16', …}
+length
+: 
+2
+[[Prototype]]
+: 
+Array(0)

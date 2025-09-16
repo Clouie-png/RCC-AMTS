@@ -24,19 +24,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileDown, Search, Loader2, Eye } from "lucide-react";
+import { FileDown, Search, Loader2 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 import { exportToCSV } from "@/lib/csv-utils";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { ViewTicketDialog } from "@/components/ticket-management";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DescriptionModal } from "@/components/ui/description-modal";
+
 
 // const API_BASE_URL = "http://localhost:3001";
 import { API_BASE_URL } from '@/config/api'; // Import the centralized API URL
@@ -55,20 +52,13 @@ export function ReportManagement() {
   const [assetFilter, setAssetFilter] = useState("all");
   const [pcPartFilter, setPCPartFilter] = useState("all");
   const [technicianFilter, setTechnicianFilter] = useState("all");
-  const [filteredPCParts, setFilteredPCParts] = useState([]);
+  
   const [dateFilter, setDateFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
-  const [viewTicketDialogOpen, setViewTicketDialogOpen] = useState(false);
-  const [selectedTicketId, setSelectedTicketId] = useState(null);
   const { user } = useAuth();
-
-  const handleViewTicket = (ticket) => {
-    setSelectedTicketId(ticket.id);
-    setViewTicketDialogOpen(true);
-  };
 
   const fetchTickets = async () => {
     if (!user?.token) return;
@@ -150,10 +140,13 @@ export function ReportManagement() {
     }
   };
 
-  const fetchPCParts = async () => {
+  const fetchPCParts = async (item_code) => {
     if (!user?.token) return;
     try {
-      const response = await axios.get(`${API_BASE_URL}/pc-parts`, {
+      const url = item_code && item_code !== 'all'
+        ? `${API_BASE_URL}/pc-parts/asset/${item_code}`
+        : `${API_BASE_URL}/pc-parts`;
+      const response = await axios.get(url, {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -247,20 +240,9 @@ export function ReportManagement() {
   }, [user?.token, filteredTickets]);
 
   useEffect(() => {
-    if (assetFilter === "all") {
-      setFilteredPCParts([]);
-      setPCPartFilter("all");
-    } else {
-      const selectedAsset = assets.find(asset => asset.item_code === assetFilter);
-      if (selectedAsset) {
-        const relatedPCParts = pcParts.filter(part => part.department_id === selectedAsset.department_id);
-        setFilteredPCParts(relatedPCParts);
-      } else {
-        setFilteredPCParts([]);
-      }
-      setPCPartFilter("all");
-    }
-  }, [assetFilter, assets, pcParts]);
+    fetchPCParts(assetFilter);
+    setPCPartFilter("all");
+  }, [assetFilter]);
 
   useEffect(() => {
     fetchTickets();
@@ -269,7 +251,7 @@ export function ReportManagement() {
     fetchSubCategories();
     fetchAssets();
     fetchTechnicians();
-    fetchPCParts();
+    fetchPCParts(); // Fetch all PC parts initially
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
@@ -452,38 +434,17 @@ export function ReportManagement() {
                   <SelectValue placeholder="Select PC part" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Select Asset First</SelectItem>
-                  {filteredPCParts.map((part) => (
-                    <SelectItem key={part.id} value={part.name}>
-                      {part.name}
+                  <SelectItem value="all">All PC Parts</SelectItem>
+                  {pcParts.map((part) => (
+                    <SelectItem key={part.id} value={part.part_name}>
+                      {part.part_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Filter by Technician */}
-            <div className="flex flex-col gap-2">
-              <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">
-                Filter by PC Part
-              </h4>
-              <Select
-                onValueChange={handleFilterChange(setPCPartFilter)}
-                defaultValue="all"
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select PC part" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All PC Parts</SelectItem>
-                  {pcParts && pcParts.map((part) => (
-                    <SelectItem key={part.id} value={part.name}>
-                      {part.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            
 
             {/* Filter by Technician */}
             <div className="flex flex-col gap-2">
@@ -536,10 +497,15 @@ export function ReportManagement() {
                       <TableHead>TICKET ID</TableHead>
                       <TableHead>DEPARTMENT</TableHead>
                       <TableHead>CATEGORY</TableHead>
+                      <TableHead>SUB-CATEGORY</TableHead>
+                      <TableHead>USER</TableHead>
+                      <TableHead>ASSET</TableHead>
+                      <TableHead>PC PART</TableHead>
+                      <TableHead>DESCRIPTION</TableHead>
                       <TableHead>STATUS</TableHead>
                       <TableHead>TECHNICIAN</TableHead>
                       <TableHead>CREATED AT</TableHead>
-                      <TableHead className="text-center">ACTIONS</TableHead>
+                      <TableHead>UPDATED AT</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -551,25 +517,23 @@ export function ReportManagement() {
                           </TableCell>
                           <TableCell>{ticket.department_name || "N/A"}</TableCell>
                           <TableCell>{ticket.category_name || "N/A"}</TableCell>
+                          <TableCell>{ticket.subcategory_name || "N/A"}</TableCell>
+                          <TableCell>{ticket.user_name || "N/A"}</TableCell>
+                          <TableCell>{ticket.asset_item_code || "N/A"}</TableCell>
+                          <TableCell>{ticket.pc_part_name || "N/A"}</TableCell>
+                          <TableCell className="align-top">
+                            <DescriptionModal text={ticket.description} maxLength={20} />
+                          </TableCell>
                           <TableCell>{ticket.status || "N/A"}</TableCell>
                           <TableCell>{ticket.technician_name || "Unassigned"}</TableCell>
                           <TableCell>{ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : "N/A"}</TableCell>
-                          <TableCell className="text-center py-4 px-4">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="rounded-full"
-                                onClick={() => handleViewTicket(ticket)}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
+                          <TableCell>{ticket.updated_at ? new Date(ticket.updated_at).toLocaleDateString() : "N/A"}</TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
                         <TableCell
-                          colSpan={7}
+                          colSpan={12}
                           className="text-center py-8 text-gray-500"
                         >
                           No tickets found matching your criteria.
@@ -657,12 +621,7 @@ export function ReportManagement() {
           </div>
         </div>
       </main>
-            {/* View Ticket Dialog */}
-            <ViewTicketDialog 
-              ticketId={selectedTicketId} 
-              open={viewTicketDialogOpen} 
-              onOpenChange={setViewTicketDialogOpen} 
-            />
+            
           
     </div>
   );

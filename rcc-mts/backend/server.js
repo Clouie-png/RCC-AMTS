@@ -11,7 +11,7 @@ const SECRET_KEY = 'your_secret_key'; // Replace with a strong, secret key in pr
 
 app.use(express.json());
 const corsOptions = {
-  origin: ['http://localhost:5173', 'http://192.168.0.128:5173'],
+  origin: ['http://localhost:5173', 'http://192.168.100.76:5173'],
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions)); // Use cors middleware with options
@@ -586,6 +586,18 @@ app.get('/pc-parts', authenticateToken, (req, res) => {
   db.all('SELECT * FROM pc_parts', [], (err, rows) => {
     if (err) {
       res.status(500).json({ message: 'Error fetching PC parts.' });
+    } else {
+      res.json(rows);
+    }
+  });
+});
+
+// PC Parts by Asset
+app.get('/pc-parts/asset/:item_code', authenticateToken, (req, res) => {
+  const { item_code } = req.params;
+  db.all('SELECT * FROM pc_parts WHERE asset_item_code = ?', [item_code], (err, rows) => {
+    if (err) {
+      res.status(500).json({ message: 'Error fetching PC parts for the asset.' });
     } else {
       res.json(rows);
     }
