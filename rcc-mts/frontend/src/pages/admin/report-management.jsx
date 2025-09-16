@@ -47,12 +47,15 @@ export function ReportManagement() {
   const [categories, setCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [assets, setAssets] = useState([]);
+  const [pcParts, setPCParts] = useState([]);
   const [technicians, setTechnicians] = useState([]);
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [subCategoryFilter, setSubCategoryFilter] = useState("all");
   const [assetFilter, setAssetFilter] = useState("all");
+  const [pcPartFilter, setPCPartFilter] = useState("all");
   const [technicianFilter, setTechnicianFilter] = useState("all");
+  const [filteredPCParts, setFilteredPCParts] = useState([]);
   const [dateFilter, setDateFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -147,6 +150,21 @@ export function ReportManagement() {
     }
   };
 
+  const fetchPCParts = async () => {
+    if (!user?.token) return;
+    try {
+      const response = await axios.get(`${API_BASE_URL}/pc-parts`, {
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      });
+      setPCParts(response.data);
+    } catch (error) {
+      console.error("Error fetching PC parts:", error);
+      alert(`Error fetching PC parts: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
   const fetchTechnicians = async () => {
     if (!user?.token) return;
     try {
@@ -174,6 +192,8 @@ export function ReportManagement() {
         subCategoryFilter === "all" || ticket.subcategory_name === subCategoryFilter;
       const matchesAsset =
         assetFilter === "all" || ticket.asset_item_code === assetFilter;
+      const matchesPCPart =
+        pcPartFilter === "all" || ticket.pc_part_name === pcPartFilter;
       const matchesTechnician =
         technicianFilter === "all" || ticket.technician_name === technicianFilter;
       const matchesDate =
@@ -185,9 +205,9 @@ export function ReportManagement() {
         ticket.category_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ticket.status?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ticket.technician_name?.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesDepartment && matchesCategory && matchesSubCategory && matchesAsset && matchesTechnician && matchesDate && matchesSearch;
+      return matchesDepartment && matchesCategory && matchesSubCategory && matchesAsset && matchesPCPart && matchesTechnician && matchesDate && matchesSearch;
     });
-  }, [tickets, departmentFilter, categoryFilter, subCategoryFilter, assetFilter, technicianFilter, dateFilter, searchQuery]);
+  }, [tickets, departmentFilter, categoryFilter, subCategoryFilter, assetFilter, pcPartFilter, technicianFilter, dateFilter, searchQuery]);
 
   // Export filtered tickets to CSV
   const exportTickets = useCallback(async () => {
@@ -227,12 +247,29 @@ export function ReportManagement() {
   }, [user?.token, filteredTickets]);
 
   useEffect(() => {
+    if (assetFilter === "all") {
+      setFilteredPCParts([]);
+      setPCPartFilter("all");
+    } else {
+      const selectedAsset = assets.find(asset => asset.item_code === assetFilter);
+      if (selectedAsset) {
+        const relatedPCParts = pcParts.filter(part => part.department_id === selectedAsset.department_id);
+        setFilteredPCParts(relatedPCParts);
+      } else {
+        setFilteredPCParts([]);
+      }
+      setPCPartFilter("all");
+    }
+  }, [assetFilter, assets, pcParts]);
+
+  useEffect(() => {
     fetchTickets();
     fetchDepartments();
     fetchCategories();
     fetchSubCategories();
     fetchAssets();
     fetchTechnicians();
+    fetchPCParts();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
@@ -395,6 +432,53 @@ export function ReportManagement() {
                   {assets && assets.map((asset) => (
                     <SelectItem key={asset.id} value={asset.item_code}>
                       {asset.item_code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filter by PC Part */}
+            <div className="flex flex-col gap-2">
+              <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">
+                Filter by PC Part
+              </h4>
+              <Select
+                onValueChange={handleFilterChange(setPCPartFilter)}
+                value={pcPartFilter}
+                disabled={assetFilter === "all"}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select PC part" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Select Asset First</SelectItem>
+                  {filteredPCParts.map((part) => (
+                    <SelectItem key={part.id} value={part.name}>
+                      {part.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filter by Technician */}
+            <div className="flex flex-col gap-2">
+              <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">
+                Filter by PC Part
+              </h4>
+              <Select
+                onValueChange={handleFilterChange(setPCPartFilter)}
+                defaultValue="all"
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select PC part" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All PC Parts</SelectItem>
+                  {pcParts && pcParts.map((part) => (
+                    <SelectItem key={part.id} value={part.name}>
+                      {part.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
