@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 import {
   Pagination,
   PaginationContent,
@@ -249,9 +251,95 @@ export function ReportManagement() {
       }));
       
       // Export to CSV
-      exportToCSV(data, `tickets-report-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.csv`);
-      
-      alert("Tickets exported successfully!");
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet("RCC AMTS Report");
+
+        const dateNow = new Date().toLocaleDateString("en-US", {
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+        });
+
+      // ✅ Add Logo (Ensure RCC LOGO.jpg is in /public/)
+        const imageResponse = await fetch("/RCC LOGO.jpg");
+        const imageBlob = await imageResponse.arrayBuffer();
+        const imageId = workbook.addImage({
+          buffer: imageBlob,
+          extension: "jpeg",
+        });
+
+      // Adjust header row heights for good spacing
+        worksheet.getRow(1).height = 35;
+        worksheet.getRow(2).height = 30;
+
+      // ✅ Insert logo into B1:B2 (just like in the image)
+        worksheet.addImage(imageId, {
+          tl: { col: 3, row: 0 }, // start at B1 (0-based index)
+          ext: { width: 90, height: 90 }, // good fit for B1–B2 visually
+        });
+
+      // ✅ Merge header cells for title and subtitle
+        worksheet.mergeCells("C1:H1");
+        worksheet.mergeCells("C2:H2");
+
+      // ✅ Title
+        const titleCell = worksheet.getCell("C1");
+        titleCell.value = "RCC AMTS";
+        titleCell.font = { size: 16, bold: true };
+        titleCell.alignment = { horizontal: "center", vertical: "middle" };
+
+      // ✅ Subtitle
+        const subtitleCell = worksheet.getCell("C2");
+        subtitleCell.value = `REPORT MANAGEMENT: ${dateNow}`;
+        subtitleCell.font = { size: 12, bold: true, color: { argb: "FF333333" } };
+        subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
+
+      // Add spacer row before the table
+        worksheet.addRow([]);
+        worksheet.addRow([]);
+
+      // ✅ Table headers
+        const headers = Object.keys(filteredTickets[0]).map(key => key.toUpperCase());
+        const headerRow = worksheet.addRow(headers);
+
+      headerRow.eachCell(cell => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // white text
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF8B4513" }, // 🤎 SaddleBrown color
+        };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+
+      // ✅ Add table data
+      filteredTickets.forEach(ticket => {
+        const row = worksheet.addRow(Object.values(ticket));
+        row.eachCell(cell => {
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
+      });
+
+        // ✅ Auto-fit columns
+        worksheet.columns.forEach(col => (col.width = 20));
+
+        // ✅ Export Excel file
+        const buffer = await workbook.xlsx.writeBuffer();
+        saveAs(new Blob([buffer]), `tickets-report-${dateNow.replace(/\//g, "-")}.xlsx`);
+
+    alert("Tickets exported successfully!");
+
     } catch (error) {
       console.error("Error exporting tickets:", error);
       alert(`Error exporting tickets: ${error.response?.data?.message || error.message}`);
