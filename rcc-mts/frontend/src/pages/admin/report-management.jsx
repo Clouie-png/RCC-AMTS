@@ -45,6 +45,7 @@ export function ReportManagement() {
   const [subCategories, setSubCategories] = useState([]);
   const [assets, setAssets] = useState([]);
   const [pcParts, setPCParts] = useState([]);
+  const [statuses, setStatuses] = useState([]);
   const [technicians, setTechnicians] = useState([]);
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -52,6 +53,7 @@ export function ReportManagement() {
   const [assetFilter, setAssetFilter] = useState("all");
   const [pcPartFilter, setPCPartFilter] = useState("all");
   const [technicianFilter, setTechnicianFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   
   const [dateFilter, setDateFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -175,6 +177,21 @@ export function ReportManagement() {
     }
   };
 
+  const fetchStatuses = async () => {
+    if (!user?.token) return;
+    try {
+      const response = await axios.get(`${API_BASE_URL}/statuses`, {
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      });
+      setStatuses(response.data);
+    } catch (error) {
+      console.error("Error fetching statuses:", error);
+      alert(`Error fetching statuses: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
       const matchesDepartment =
@@ -189,6 +206,8 @@ export function ReportManagement() {
         pcPartFilter === "all" || ticket.pc_part_name === pcPartFilter;
       const matchesTechnician =
         technicianFilter === "all" || ticket.technician_name === technicianFilter;
+      const matchesStatus =
+        statusFilter === "all" || ticket.status_name === statusFilter;
       const matchesDate =
         !dateFilter || (ticket.created_at && ticket.created_at.startsWith(dateFilter));
       const matchesSearch =
@@ -196,11 +215,11 @@ export function ReportManagement() {
         ticket.id.toString().includes(searchQuery) ||
         ticket.department_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ticket.category_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.status?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ticket.status_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ticket.technician_name?.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesDepartment && matchesCategory && matchesSubCategory && matchesAsset && matchesPCPart && matchesTechnician && matchesDate && matchesSearch;
+      return matchesDepartment && matchesCategory && matchesSubCategory && matchesAsset && matchesPCPart && matchesTechnician && matchesStatus && matchesDate && matchesSearch;
     });
-  }, [tickets, departmentFilter, categoryFilter, subCategoryFilter, assetFilter, pcPartFilter, technicianFilter, dateFilter, searchQuery]);
+  }, [tickets, departmentFilter, categoryFilter, subCategoryFilter, assetFilter, pcPartFilter, technicianFilter, statusFilter, dateFilter, searchQuery]);
 
   // Export filtered tickets to CSV
   const exportTickets = useCallback(async () => {
@@ -223,7 +242,7 @@ export function ReportManagement() {
         "PC Part": ticket.pc_part_name || "N/A",
         "Description": ticket.description || "N/A",
         "Resolution": ticket.resolution || "N/A",
-        "Status": ticket.status || "N/A",
+        "Status": ticket.status_name || "N/A",
         "Technician": ticket.technician_name || "Unassigned",
         "Created At": ticket.created_at || "N/A",
         "Updated At": ticket.updated_at || "N/A"
@@ -240,19 +259,18 @@ export function ReportManagement() {
   }, [user?.token, filteredTickets]);
 
   useEffect(() => {
-    fetchPCParts(assetFilter);
-    setPCPartFilter("all");
-  }, [assetFilter]);
-
-  useEffect(() => {
     fetchTickets();
     fetchDepartments();
     fetchCategories();
     fetchSubCategories();
     fetchAssets();
     fetchTechnicians();
-    fetchPCParts(); // Fetch all PC parts initially
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchStatuses();
+    fetchPCParts(assetFilter);
+    if (assetFilter === "all") {
+      setPCPartFilter("all");
+    }
+  }, [assetFilter]);
 
   const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -444,6 +462,29 @@ export function ReportManagement() {
               </Select>
             </div>
 
+            {/* Filter by Status */}
+            <div className="flex flex-col gap-2">
+              <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">
+                Filter by Status
+              </h4>
+              <Select
+                onValueChange={handleFilterChange(setStatusFilter)}
+                defaultValue="all"
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  {statuses.map((status) => (
+                    <SelectItem key={status.id} value={status.name}>
+                      {status.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             
 
             {/* Filter by Technician */}
@@ -524,7 +565,7 @@ export function ReportManagement() {
                           <TableCell className="align-top">
                             <DescriptionModal text={ticket.description} maxLength={20} />
                           </TableCell>
-                          <TableCell>{ticket.status || "N/A"}</TableCell>
+                          <TableCell>{ticket.status_name || "N/A"}</TableCell>
                           <TableCell>{ticket.technician_name || "Unassigned"}</TableCell>
                           <TableCell>{ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : "N/A"}</TableCell>
                           <TableCell>{ticket.updated_at ? new Date(ticket.updated_at).toLocaleDateString() : "N/A"}</TableCell>

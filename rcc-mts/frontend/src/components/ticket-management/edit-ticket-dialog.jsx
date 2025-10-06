@@ -25,7 +25,7 @@ import { useTicketFilters } from "@/hooks";
 // const API_BASE_URL = "http://localhost:3001";
 import { API_BASE_URL } from '@/config/api'; // Import the centralized API URL
 
-export function EditTicketDialog({ ticket, fetchTickets, departments, categories, subCategories, users, assets, pcParts }) {
+export function EditTicketDialog({ ticket, fetchTickets, departments, categories, subCategories, users, assets, pcParts, statuses }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState(ticket?.department_id?.toString() || "");
@@ -35,7 +35,7 @@ export function EditTicketDialog({ ticket, fetchTickets, departments, categories
   const [selectedAssetId, setSelectedAssetId] = useState(ticket?.asset_id?.toString() || "");
   const [selectedPcPartId, setSelectedPcPartId] = useState(ticket?.pc_part_id?.toString() || "");
   const [description, setDescription] = useState(ticket?.description || "");
-  const [status, setStatus] = useState(ticket?.status || "Open");
+  const [selectedStatusId, setSelectedStatusId] = useState(ticket?.status_id?.toString() || "");
   const [selectedTechnicianId, setSelectedTechnicianId] = useState(ticket?.technician_id?.toString() || "");
   const [assetSpecificPcParts, setAssetSpecificPcParts] = useState([]);
   const isSettingAssetRef = useRef(false);
@@ -121,8 +121,8 @@ export function EditTicketDialog({ ticket, fetchTickets, departments, categories
 
   const handleConfirm = async () => {
     try {
-      const originalStatus = ticket?.status;
-      const newStatus = status;
+      const originalStatusId = ticket?.status_id?.toString();
+      const newStatusId = selectedStatusId;
 
       // Prepare the data to send, only including fields that should be updated
       const updateData = {};
@@ -155,8 +155,8 @@ export function EditTicketDialog({ ticket, fetchTickets, departments, categories
         updateData.description = description || null;
       }
       
-      if (newStatus !== (ticket?.status || "Open")) {
-        updateData.status = newStatus;
+      if (newStatusId !== originalStatusId) {
+        updateData.status_id = newStatusId ? parseInt(newStatusId, 10) : null;
       }
       
       if (hasChanged(selectedTechnicianId, ticket?.technician_id)) {
@@ -172,9 +172,10 @@ export function EditTicketDialog({ ticket, fetchTickets, departments, categories
         );
       }
 
-      // If status changed to "In Progress" or "Closed", send a notification
-      if ((newStatus === "In Progress" || newStatus === "Closed") && newStatus !== originalStatus) {
-        const message = `Ticket #${ticket.id} has been updated to "${newStatus}" by ${user.name}.`;
+      // If status changed, send a notification
+      if (newStatusId && newStatusId !== originalStatusId) {
+        const newStatus = statuses.find(s => s.id.toString() === newStatusId);
+        const message = `Ticket #${ticket.id} has been updated to "${newStatus?.name}" by ${user.name}.`;
         try {
           await axios.post(
             `${API_BASE_URL}/notifications/broadcast`,
@@ -427,17 +428,18 @@ export function EditTicketDialog({ ticket, fetchTickets, departments, categories
           {/* Status - Disabled for Admins */}
           <div>
             <Label className="block mb-2">Status</Label>
-            <Select onValueChange={setStatus} value={status} disabled>
+            <Select onValueChange={setSelectedStatusId} value={selectedStatusId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Open">Open</SelectItem>
-                <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Closed">Closed</SelectItem>
+                {statuses?.map((stat) => (
+                  <SelectItem key={stat.id} value={stat.id.toString()}>
+                    {stat.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <p className="text-sm text-gray-500 mt-1">Status can only be updated by maintenance users.</p>
           </div>
 
           {/* Description */}

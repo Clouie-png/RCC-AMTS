@@ -46,6 +46,7 @@ export function TicketManagement() {
   const [users, setUsers] = useState([]);
   const [assets, setAssets] = useState([]);
   const [pcParts, setPcParts] = useState([]);
+  const [statuses, setStatuses] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
@@ -94,7 +95,8 @@ export function TicketManagement() {
       fetchData('sub-categories', setSubCategories),
       fetchData('users', setUsers),
       fetchData('assets', setAssets),
-      fetchData('pc-parts', setPcParts)
+      fetchData('pc-parts', setPcParts),
+      fetchData('statuses', setStatuses)
     ]);
   }, [fetchData, fetchTickets]);
 
@@ -109,7 +111,7 @@ export function TicketManagement() {
       "Asset": ticket.asset_item_code || "N/A",
       "PC Part": ticket.pc_part_name || "N/A",
       "Description": ticket.description || "N/A",
-      "Status": ticket.status || "N/A",
+      "Status": ticket.status_name || "N/A",
       "Technician": ticket.technician_name || "Unassigned",
       "Created At": ticket.created_at || "N/A",
       "Updated At": ticket.updated_at || "N/A"
@@ -139,7 +141,7 @@ export function TicketManagement() {
         formattedTicketId.includes(searchQuery) ||
         ticket.department_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ticket.category_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.status?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ticket.status_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ticket.technician_name?.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesSearch;
     });
@@ -203,6 +205,7 @@ export function TicketManagement() {
                 users={users}
                 assets={assets}
                 pcParts={pcParts}
+                statuses={statuses}
               />
               <BulkUploadDialog
                 fetchItems={fetchTickets}
@@ -278,7 +281,7 @@ export function TicketManagement() {
                             )}`}</TableCell>
                             <TableCell>{ticket.department_name || "N/A"}</TableCell>
                             <TableCell>{ticket.category_name || "N/A"}</TableCell>
-                            <TableCell>{ticket.status || "N/A"}</TableCell>
+                            <TableCell>{ticket.status_name || "N/A"}</TableCell>
                             <TableCell>{ticket.technician_name || "Unassigned"}</TableCell>
                             <TableCell className="text-right">
                               <EditTicketDialog
@@ -290,6 +293,7 @@ export function TicketManagement() {
                                 users={users}
                                 assets={assets}
                                 pcParts={pcParts}
+                                statuses={statuses}
                               />
                             </TableCell>
                           </TableRow>

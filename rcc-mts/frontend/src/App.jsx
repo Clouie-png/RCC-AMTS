@@ -8,6 +8,7 @@ import { TopBar } from "./components/top-bar";
 import { ProtectedRoute } from "./components/protected-route";
 import { FacultyStaffPage } from "./pages/faculty-staff/index";
 import { SubCategoryManagement } from "./pages/admin/sub-category-management";
+import { StatusManagement } from "./pages/admin/status-management";
 import { AssetManagement } from "./pages/admin/asset-management";
 import { PCPartsManagement } from "./pages/admin/pc-parts-management";
 import { TicketManagement } from "./pages/admin/ticket-management";
@@ -61,6 +62,7 @@ function App() {
             <Route path="departments" element={<DepartmentManagement />} />
             <Route path="categories" element={<CategoryManagement />} />
             <Route path="subcategories" element={<SubCategoryManagement />} />
+            <Route path="statuses" element={<StatusManagement />} />
             <Route path="assets" element={<AssetManagement />} />
             <Route path="pc-parts" element={<PCPartsManagement />} />
             <Route path="tickets" element={<TicketManagement />} />

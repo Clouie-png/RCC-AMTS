@@ -33,6 +33,7 @@ export function AddTicketDialog({
   users,
   assets,
   pcParts,
+  statuses,
 }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -43,7 +44,7 @@ export function AddTicketDialog({
   const [selectedAssetId, setSelectedAssetId] = useState("");
   const [selectedPcPartId, setSelectedPcPartId] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState("Open");
+  const [selectedStatusId, setSelectedStatusId] = useState("");
   const [selectedTechnicianId, setSelectedTechnicianId] = useState("");
   const [assetSpecificPcParts, setAssetSpecificPcParts] = useState([]);
   const isSettingAssetRef = useRef(false);
@@ -126,14 +127,14 @@ export function AddTicketDialog({
     setSelectedAssetId("");
     setSelectedPcPartId("");
     setDescription("");
-    setStatus("Open");
+    setSelectedStatusId("");
     setSelectedTechnicianId("");
     setAssetSpecificPcParts([]);
   }, []);
 
   const handleConfirm = async () => {
-    if (!selectedDepartmentId || !selectedCategoryId) {
-      alert("Please select both department and category.");
+    if (!selectedDepartmentId || !selectedCategoryId || !selectedStatusId) {
+      alert("Please select department, category, and status.");
       return;
     }
 
@@ -153,7 +154,7 @@ export function AddTicketDialog({
               ? parseInt(selectedPcPartId, 10)
               : null,
           description: description || null,
-          status: status,
+          status_id: parseInt(selectedStatusId, 10),
           technician_id: selectedTechnicianId
             ? parseInt(selectedTechnicianId, 10)
             : null,
@@ -280,6 +281,26 @@ export function AddTicketDialog({
                 {filteredSubCategories?.map((subCat) => (
                   <SelectItem key={subCat.id} value={subCat.id.toString()}>
                     {subCat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Status */}
+          <div>
+            <Label className="block mb-2">Status *</Label>
+            <Select
+              value={selectedStatusId}
+              onValueChange={setSelectedStatusId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a status" />
+              </SelectTrigger>
+              <SelectContent>
+                {statuses?.map((stat) => (
+                  <SelectItem key={stat.id} value={stat.id.toString()}>
+                    {stat.name}
                   </SelectItem>
                 ))}
               </SelectContent>

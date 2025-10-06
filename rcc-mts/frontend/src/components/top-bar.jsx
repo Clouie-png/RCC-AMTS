@@ -111,6 +111,17 @@ export function TopBar() {
               Sub-Category Management
             </Link>
             <Link
+              to="/admin/statuses"
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${
+                isActive("/admin/statuses")
+                  ? "bg-gray-900 text-white dark:bg-gray-800"
+                  : "text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-50"
+              }`}
+            >
+              <LayoutGrid className="h-5 w-5" />
+              Status Management
+            </Link>
+            <Link
               to="/admin/assets"
               className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${
                 isActive("/admin/assets")

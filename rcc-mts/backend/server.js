@@ -204,7 +204,38 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
         }
       });
 
+      // Create statuses table
+      db.run(`CREATE TABLE IF NOT EXISTS statuses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE
+      )`, (err) => {
+        if (err) {
+          console.error('Error creating statuses table:', err.message);
+        } else {
+          // Add default statuses if the table is empty
+          db.get("SELECT COUNT(*) as count FROM statuses", (err, row) => {
+            if (err) {
+              console.error("Error checking statuses count:", err.message);
+              return;
+            }
+            if (row.count === 0) {
+              const statuses = ['Open', 'In Progress', 'Closed'];
+              const stmt = db.prepare("INSERT INTO statuses (name) VALUES (?)");
+              statuses.forEach(status => stmt.run(status));
+              stmt.finalize(err => {
+                if (err) {
+                  console.error('Error inserting default statuses:', err.message);
+                } else {
+                  console.log('Default statuses created.');
+                }
+              });
+            }
+          });
+        }
+      });
+
       // Create tickets table
+      db.run(`DROP TABLE IF EXISTS tickets`);
       db.run(`CREATE TABLE IF NOT EXISTS tickets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         department_id INTEGER NOT NULL,
@@ -215,35 +246,18 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
         pc_part_id INTEGER REFERENCES pc_parts(id) ON DELETE SET NULL,
         description TEXT,
         resolution TEXT,
-        status TEXT NOT NULL DEFAULT 'Open',
+        status_id INTEGER NOT NULL,
         technician_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
         FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
         FOREIGN KEY (subcategory_id) REFERENCES sub_categories(id) ON DELETE SET NULL,
+        FOREIGN KEY (status_id) REFERENCES statuses(id) ON DELETE CASCADE,
         FOREIGN KEY (technician_id) REFERENCES users(id) ON DELETE SET NULL
       )`, (err) => {
         if (err) {
           console.error('Error creating tickets table:', err.message);
-        } else {
-          // Check for resolution column and add if it doesn't exist (for existing databases)
-          db.all("PRAGMA table_info(tickets)", (err, columns) => {
-            if (err) {
-              console.error("Error checking tickets table columns:", err);
-              return;
-            }
-            const resolutionColumn = columns.find(c => c.name === 'resolution');
-            if (!resolutionColumn) {
-              db.run("ALTER TABLE tickets ADD COLUMN resolution TEXT", (err) => {
-                if (err) {
-                  console.error("Error adding resolution column to tickets table:", err);
-                } else {
-                  console.log("Successfully added resolution column to tickets table.");
-                }
-              });
-            }
-          });
         }
       });
 
@@ -526,6 +540,57 @@ app.delete('/sub-categories/:id', authenticateToken, isAdmin, (req, res) => {
   });
 });
 
+// Status Management Endpoints
+app.get('/statuses', authenticateToken, (req, res) => {
+  db.all('SELECT * FROM statuses', [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ message: 'Error fetching statuses.' });
+    } else {
+      res.json(rows);
+    }
+  });
+});
+
+app.post('/statuses', authenticateToken, isAdmin, (req, res) => {
+  const { name } = req.body;
+  db.run('INSERT INTO statuses (name) VALUES (?)', [name], function(err) {
+    if (err) {
+      if (err.errno === 19) { // SQLITE_CONSTRAINT error code
+        return res.status(409).json({ message: 'Status with this name already exists.' });
+      }
+      res.status(500).json({ message: 'Error adding status.' });
+    } else {
+      res.status(201).json({ statusId: this.lastID });
+    }
+  });
+});
+
+app.put('/statuses/:id', authenticateToken, isAdmin, (req, res) => {
+  const { name } = req.body;
+  db.run('UPDATE statuses SET name = ? WHERE id = ?', [name, req.params.id], function(err) {
+    if (err) {
+      res.status(500).json({ message: 'Error updating status.' });
+    } else if (this.changes === 0) {
+      res.status(404).json({ message: 'Status not found.' });
+    } else {
+      res.json({ message: 'Status updated successfully.' });
+    }
+  });
+});
+
+app.delete('/statuses/:id', authenticateToken, isAdmin, (req, res) => {
+  db.run('DELETE FROM statuses WHERE id = ?', req.params.id, function(err) {
+    if (err) {
+      res.status(500).json({ message: 'Error deleting status.' });
+    } else if (this.changes === 0) {
+      res.status(404).json({ message: 'Status not found.' });
+    } else {
+      res.json({ message: 'Status deleted successfully.' });
+    }
+  });
+});
+
+
 // Asset Management Endpoints
 app.get('/assets', authenticateToken, (req, res) => {
   db.all('SELECT * FROM assets', [], (err, rows) => {
@@ -667,7 +732,8 @@ app.get('/tickets', authenticateToken, (req, res) => {
       p.part_name AS pc_part_name,
       t.description,
       t.resolution,
-      t.status,
+      t.status_id,
+      s.name as status_name,
       t.technician_id,
       tech.name AS technician_name,
       t.created_at,
@@ -680,6 +746,7 @@ app.get('/tickets', authenticateToken, (req, res) => {
     LEFT JOIN users tech ON t.technician_id = tech.id
     LEFT JOIN assets a ON t.asset_id = a.id
     LEFT JOIN pc_parts p ON t.pc_part_id = p.id
+    LEFT JOIN statuses s ON t.status_id = s.id
     ORDER BY t.created_at DESC
   `;
   
@@ -719,17 +786,11 @@ const getAdminUsers = (callback) => {
 };
 
 app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
-  const { department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status, technician_id } = req.body;
-  const validStatuses = ['Open', 'In Progress', 'Closed'];
+  const { department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status_id, technician_id } = req.body;
   
   // Validate required fields
-  if (!department_id || !category_id) {
-    return res.status(400).json({ message: 'Department and category are required.' });
-  }
-  
-  // Validate status
-  if (status && !validStatuses.includes(status)) {
-    return res.status(400).json({ message: 'Invalid status value.' });
+  if (!department_id || !category_id || !status_id) {
+    return res.status(400).json({ message: 'Department, category and status are required.' });
   }
   
   // Validate IDs if provided
@@ -744,9 +805,10 @@ app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
   validateId(asset_id, 'asset_id');
   validateId(pc_part_id, 'pc_part_id');
   validateId(subcategory_id, 'subcategory_id');
+  validateId(status_id, 'status_id');
   
   const query = `
-    INSERT INTO tickets (department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status, technician_id)
+    INSERT INTO tickets (department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status_id, technician_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   
@@ -759,7 +821,7 @@ app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
     pc_part_id || null,
     description || null,
     resolution || null,
-    status || 'Open', // Default to 'Open' if not provided
+    status_id,
     technician_id || null
   ];
   
@@ -774,7 +836,7 @@ app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
       // 1. Notify the ticket creator (faculty/staff)
       if (user_id) {
         createNotification(user_id, ticketId, 
-          `Your ticket #${ticketId} has been created and is now ${status || 'Open'}.`, 
+          `Your ticket #${ticketId} has been created.`, 
           (err) => {
             if (err) console.error('Failed to notify ticket creator:', err.message);
           }
@@ -814,14 +876,8 @@ app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
 });
 
 app.put('/tickets/:id', authenticateToken, isAdminOrMaintenance, (req, res) => {
-  const { department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status, technician_id } = req.body;
-  const validStatuses = ['Open', 'In Progress', 'Closed'];
+  const { department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status_id, technician_id } = req.body;
   const ticketId = req.params.id;
-  
-  // Validate status
-  if (status && !validStatuses.includes(status)) {
-    return res.status(400).json({ message: 'Invalid status value.' });
-  }
   
   // Validate IDs if provided
   const validateId = (id, fieldName) => {
@@ -837,11 +893,12 @@ app.put('/tickets/:id', authenticateToken, isAdminOrMaintenance, (req, res) => {
   validateId(subcategory_id, 'subcategory_id');
   validateId(department_id, 'department_id');
   validateId(category_id, 'category_id');
+  validateId(status_id, 'status_id');
   
   // First, get the current ticket information to check for changes
   const getCurrentTicket = () => {
     return new Promise((resolve, reject) => {
-      db.get('SELECT user_id, technician_id, status FROM tickets WHERE id = ?', [ticketId], (err, row) => {
+      db.get('SELECT user_id, technician_id, status_id FROM tickets WHERE id = ?', [ticketId], (err, row) => {
         if (err) {
           reject(err);
         } else if (!row) {
@@ -897,9 +954,9 @@ app.put('/tickets/:id', authenticateToken, isAdminOrMaintenance, (req, res) => {
     values.push(resolution);
   }
   
-  if (status !== undefined) {
-    fields.push('status = ?');
-    values.push(status);
+  if (status_id !== undefined) {
+    fields.push('status_id = ?');
+    values.push(status_id);
   }
   
   if (technician_id !== undefined) {
@@ -931,31 +988,35 @@ app.put('/tickets/:id', authenticateToken, isAdminOrMaintenance, (req, res) => {
           const notifications = [];
           
           // Notify ticket creator if status changed
-          if (status !== undefined && status !== currentTicket.status) {
-            const statusChangeMessage = `Status of your ticket #${ticketId} has been updated to ${status}.`;
-            if (currentTicket.user_id) {
-              notifications.push({
-                userId: currentTicket.user_id,
-                message: statusChangeMessage
-              });
-            }
-            
-            // Notify all admins about status change
-            getAdminUsers((err, adminIds) => {
-              if (!err && adminIds.length > 0) {
-                adminIds.forEach(adminId => {
-                  // Don't notify the admin who made the change (if it's an admin)
-                  if (adminId !== currentTicket.user_id) {
-                    createNotification(adminId, ticketId, 
-                      `Status of ticket #${ticketId} has been updated to ${status}.`, 
-                      (err) => {
-                        if (err) console.error(`Failed to notify admin ${adminId}:`, err.message);
-                      }
-                    );
-                  }
+          if (status_id !== undefined && status_id !== currentTicket.status_id) {
+            db.get('SELECT name FROM statuses WHERE id = ?', [status_id], (err, status) => {
+              if (err) return;
+              const statusName = status ? status.name : 'updated';
+              const statusChangeMessage = `Status of your ticket #${ticketId} has been updated to ${statusName}.`;
+              if (currentTicket.user_id) {
+                notifications.push({
+                  userId: currentTicket.user_id,
+                  message: statusChangeMessage
                 });
               }
-            });
+            
+              // Notify all admins about status change
+              getAdminUsers((err, adminIds) => {
+                if (!err && adminIds.length > 0) {
+                  adminIds.forEach(adminId => {
+                    // Don't notify the admin who made the change (if it's an admin)
+                    if (adminId !== currentTicket.user_id) {
+                      createNotification(adminId, ticketId, 
+                        `Status of ticket #${ticketId} has been updated to ${statusName}.`, 
+                        (err) => {
+                          if (err) console.error(`Failed to notify admin ${adminId}:`, err.message);
+                        }
+                      );
+                    }
+                  });
+                }
+              });
+            })
           }
           
           // Notify new technician if assigned
