@@ -228,7 +228,7 @@ export function TicketManagement() {
                     return !isNaN(num) && num > 0 ? true : "User ID must be a valid positive integer";
                   },
                   "Status": (value) => {
-                    return ["Open", "In Progress", "Closed"].includes(value) ? true : "Status must be either 'Open', 'In Progress', or 'Closed'";
+                    return ["Open", "In Progress", "Closed", "For Approval"].includes(value) ? true : "Status must be either 'Open', 'In Progress', 'Closed', or 'For Approval'";
                   }
                 }}
                 fieldMappings={{
@@ -279,7 +279,21 @@ export function TicketManagement() {
                             )}`}</TableCell>
                             <TableCell>{ticket.department_name || "N/A"}</TableCell>
                             <TableCell>{ticket.category_name || "N/A"}</TableCell>
-                            <TableCell>{ticket.status_name || "N/A"}</TableCell>
+                            <TableCell><span
+                              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                                ticket.status_name === "Open"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : ticket.status_name === "In Progress"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : ticket.status_name === "Closed"
+                                  ? "bg-green-100 text-green-800"
+                                  : ticket.status_name === "For Approval"
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {ticket.status_name || "N/A"}
+                            </span></TableCell>
                             <TableCell>{ticket.technician_name || "Unassigned"}</TableCell>
                             <TableCell className="text-right">
                               <EditTicketDialog

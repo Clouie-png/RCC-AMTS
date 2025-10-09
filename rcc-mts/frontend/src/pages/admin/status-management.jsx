@@ -136,7 +136,7 @@ const AddStatusDialog = ({ fetchStatuses, statuses }) => {
   );
 };
 
-const EditStatusDialog = ({ status, fetchStatuses }) => {
+const EditStatusDialog = ({ status, fetchStatuses, disabled }) => {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(status.name);
@@ -162,7 +162,7 @@ const EditStatusDialog = ({ status, fetchStatuses }) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" disabled={disabled}>
           <Pencil className="h-4 w-4 text-blue-600" />
         </Button>
       </DialogTrigger>
@@ -197,7 +197,7 @@ const EditStatusDialog = ({ status, fetchStatuses }) => {
   );
 };
 
-const DeleteStatusDialog = ({ status, fetchStatuses }) => {
+const DeleteStatusDialog = ({ status, fetchStatuses, disabled }) => {
   const { user } = useAuth();
   const handleConfirm = async () => {
     try {
@@ -215,7 +215,7 @@ const DeleteStatusDialog = ({ status, fetchStatuses }) => {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" disabled={disabled}>
           <Trash2 className="h-4 w-4 text-blue-600" />
         </Button>
       </AlertDialogTrigger>
@@ -242,6 +242,7 @@ export function StatusManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  const coreStatuses = ['Open', 'In Progress', 'Closed', 'For Approval'];
 
   const fetchStatuses = async () => {
     if (!user) return;
@@ -307,6 +308,7 @@ export function StatusManagement() {
                 </TableHeader>
                 <TableBody>
                   {paginatedStatuses.map((stat) => {
+                    const isCoreStatus = coreStatuses.includes(stat.name);
                     return (
                       <TableRow key={stat.id}>
                         <TableCell>{`S-${String(stat.id).padStart(
@@ -318,10 +320,12 @@ export function StatusManagement() {
                           <EditStatusDialog
                             status={stat}
                             fetchStatuses={fetchStatuses}
+                            disabled={isCoreStatus}
                           />
                           <DeleteStatusDialog
                             status={stat}
                             fetchStatuses={fetchStatuses}
+                            disabled={isCoreStatus}
                           />
                         </TableCell>
                       </TableRow>

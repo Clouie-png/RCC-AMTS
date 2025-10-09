@@ -7,7 +7,14 @@ const path = require('path'); // Import path for serving static files
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const SECRET_KEY = 'your_secret_key'; // Replace with a strong, secret key in production
+
+// IMPORTANT: Set a strong, secret key in your environment variables
+const SECRET_KEY = process.env.SECRET_KEY;
+
+if (!SECRET_KEY) {
+  console.error('CRITICAL ERROR: SECRET_KEY is not set. Please set a strong secret key in your environment variables.');
+  process.exit(1);
+}
 
 app.use(express.json());
 const corsOptions = {
@@ -71,7 +78,7 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
         if (err) {
           console.error('Error creating categories table:', err.message);
         } else {
-          // Check if department_id column exists and remove it if it does
+          // Check if department_id column exists and log a warning if it does
           db.all("PRAGMA table_info(categories)", (err, columns) => {
             if (err) {
               console.error("Error checking categories table columns:", err);
@@ -79,18 +86,7 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
             }
             const departmentIdColumn = columns.find(c => c.name === 'department_id');
             if (departmentIdColumn) {
-              console.log("department_id column found in categories table, will recreate table");
-              // Since there's no data in the categories table, we can safely recreate it
-              db.serialize(() => {
-                db.run("ALTER TABLE categories RENAME TO categories_old");
-                db.run(`CREATE TABLE categories (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT NOT NULL,
-                  ticketCount INTEGER DEFAULT 0
-                )`);
-                db.run("DROP TABLE categories_old");
-                console.log("Categories table recreated without department_id column");
-              });
+              console.log("WARNING: The 'categories' table has an unexpected 'department_id' column. This may cause issues.");
             }
           });
         }
@@ -140,7 +136,7 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
         if (err) {
           console.error('Error creating assets table:', err.message);
         } else {
-          // Check if department_id column exists and add it if it doesn't
+          // Check if department_id column exists and log a warning if it doesn't
           db.all("PRAGMA table_info(assets)", (err, columns) => {
             if (err) {
               console.error("Error checking assets table columns:", err);
@@ -148,38 +144,7 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
             }
             const departmentIdColumn = columns.find(c => c.name === 'department_id');
             if (!departmentIdColumn) {
-              console.log("department_id column not found in assets table, will recreate table");
-              // Check if there's any data in the assets table
-              db.get("SELECT COUNT(*) as count FROM assets", (err, row) => {
-                if (err) {
-                  console.error("Error checking assets count:", err);
-                  return;
-                }
-                if (row.count > 0) {
-                  console.log("WARNING: Assets table has data that will be lost during migration");
-                }
-                // Recreate the assets table with the department_id column
-                db.serialize(() => {
-                  db.run("ALTER TABLE assets RENAME TO assets_old");
-                  db.run(`CREATE TABLE assets (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    item_code TEXT NOT NULL UNIQUE,
-                    date_acquired TEXT NOT NULL,
-                    serial_no TEXT NOT NULL UNIQUE,
-                    unit_price REAL NOT NULL,
-                    description TEXT,
-                    supplier TEXT,
-                    sub_category_id INTEGER NOT NULL,
-                    department_id INTEGER NOT NULL,
-                    FOREIGN KEY (sub_category_id) REFERENCES sub_categories(id) ON DELETE CASCADE,
-                    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE
-                  )`);
-                  // In a production environment, we would migrate the data here
-                  // For now, we'll just drop the old table
-                  db.run("DROP TABLE assets_old");
-                  console.log("Assets table recreated with department_id column");
-                });
-              });
+              console.log("WARNING: The 'assets' table is missing the 'department_id' column. This may cause issues.");
             }
           });
         }
@@ -829,6 +794,14 @@ const getAdminUsers = (callback) => {
   });
 };
 
+const validateId = (res, id, fieldName) => {
+  if (id !== undefined && id !== null && isNaN(id)) {
+    res.status(400).json({ message: `Invalid ${fieldName} value.` });
+    return false;
+  }
+  return true;
+};
+
 app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
   const { department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status_id, technician_id } = req.body;
   
@@ -838,18 +811,12 @@ app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
   }
   
   // Validate IDs if provided
-  const validateId = (id, fieldName) => {
-    if (id !== undefined && id !== null && isNaN(id)) {
-      return res.status(400).json({ message: `Invalid ${fieldName} value.` });
-    }
-  };
-  
-  validateId(technician_id, 'technician_id');
-  validateId(user_id, 'user_id');
-  validateId(asset_id, 'asset_id');
-  validateId(pc_part_id, 'pc_part_id');
-  validateId(subcategory_id, 'subcategory_id');
-  validateId(status_id, 'status_id');
+  if (!validateId(res, technician_id, 'technician_id')) return;
+  if (!validateId(res, user_id, 'user_id')) return;
+  if (!validateId(res, asset_id, 'asset_id')) return;
+  if (!validateId(res, pc_part_id, 'pc_part_id')) return;
+  if (!validateId(res, subcategory_id, 'subcategory_id')) return;
+  if (!validateId(res, status_id, 'status_id')) return;
   
   const query = `
     INSERT INTO tickets (department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status_id, technician_id)
@@ -872,7 +839,7 @@ app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
   db.run(query, values, function(err) {
     if (err) {
       console.error('Error creating ticket:', err.message);
-      res.status(500).json({ message: 'Error creating ticket.' });
+      return res.status(500).json({ message: 'Error creating ticket.' });
     } else {
       const ticketId = this.lastID;
       
@@ -911,7 +878,7 @@ app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
         );
       }
       
-      res.status(201).json({ 
+      return res.status(201).json({ 
         message: 'Ticket created successfully.', 
         ticketId: ticketId
       });
@@ -919,177 +886,150 @@ app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
   });
 });
 
-app.put('/tickets/:id', authenticateToken, canUpdateTicket, (req, res) => {
-  const { department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status_id, technician_id } = req.body;
-  const ticketId = req.params.id;
-  
-  // Validate IDs if provided
-  const validateId = (id, fieldName) => {
-    if (id !== undefined && id !== null && isNaN(id)) {
-      return res.status(400).json({ message: `Invalid ${fieldName} value.` });
-    }
-  };
-  
-  validateId(technician_id, 'technician_id');
-  validateId(user_id, 'user_id');
-  validateId(asset_id, 'asset_id');
-  validateId(pc_part_id, 'pc_part_id');
-  validateId(subcategory_id, 'subcategory_id');
-  validateId(department_id, 'department_id');
-  validateId(category_id, 'category_id');
-  validateId(status_id, 'status_id');
-  
-  // First, get the current ticket information to check for changes
-  const getCurrentTicket = () => {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT user_id, technician_id, status_id FROM tickets WHERE id = ?', [ticketId], (err, row) => {
-        if (err) {
-          reject(err);
-        } else if (!row) {
-          reject(new Error('Ticket not found'));
-        } else {
-          resolve(row);
-        }
-      });
-    });
-  };
-  
-  // Build the query dynamically based on provided fields
-  let fields = [];
-  let values = [];
-  
-  if (department_id !== undefined) {
-    fields.push('department_id = ?');
-    values.push(department_id);
-  }
-  
-  if (category_id !== undefined) {
-    fields.push('category_id = ?');
-    values.push(category_id);
-  }
-  
-  if (subcategory_id !== undefined) {
-    fields.push('subcategory_id = ?');
-    values.push(subcategory_id);
-  }
-  
-  if (user_id !== undefined) {
-    fields.push('user_id = ?');
-    values.push(user_id);
-  }
-  
-  if (asset_id !== undefined) {
-    fields.push('asset_id = ?');
-    values.push(asset_id);
-  }
-  
-  if (pc_part_id !== undefined) {
-    fields.push('pc_part_id = ?');
-    values.push(pc_part_id);
-  }
-  
-  if (description !== undefined) {
-    fields.push('description = ?');
-    values.push(description);
-  }
-  
-  if (resolution !== undefined) {
-    fields.push('resolution = ?');
-    values.push(resolution);
-  }
-  
-  if (status_id !== undefined) {
-    fields.push('status_id = ?');
-    values.push(status_id);
-  }
-  
-  if (technician_id !== undefined) {
-    fields.push('technician_id = ?');
-    values.push(technician_id);
-  }
-  
-  // Always update the updated_at timestamp
-  fields.push('updated_at = CURRENT_TIMESTAMP');
-  
-  if (fields.length === 0) {
-    return res.status(400).json({ message: 'No fields to update.' });
-  }
-  
-  const query = `UPDATE tickets SET ${fields.join(', ')} WHERE id = ?`;
-  values.push(ticketId);
-  
-  // Process the ticket update and send notifications
-  getCurrentTicket()
-    .then(currentTicket => {
-      db.run(query, values, function(err) {
-        if (err) {
-          console.error('Error updating ticket:', err.message);
-          res.status(500).json({ message: 'Error updating ticket.' });
-        } else if (this.changes === 0) {
-          res.status(404).json({ message: 'Ticket not found.' });
-        } else {
-          // Check for changes that require notifications
-          const notifications = [];
-          
-          // Notify ticket creator if status changed
-          if (status_id !== undefined && status_id !== currentTicket.status_id) {
-            db.get('SELECT name FROM statuses WHERE id = ?', [status_id], (err, status) => {
-              if (err) return;
-              const statusName = status ? status.name : 'updated';
-              const statusChangeMessage = `Status of your ticket #${ticketId} has been updated to ${statusName}.`;
-              if (currentTicket.user_id) {
-                notifications.push({
-                  userId: currentTicket.user_id,
-                  message: statusChangeMessage
-                });
-              }
-            
-              // Notify all admins about status change
-              getAdminUsers((err, adminIds) => {
-                if (!err && adminIds.length > 0) {
-                  adminIds.forEach(adminId => {
-                    // Don't notify the admin who made the change (if it's an admin)
-                    if (adminId !== currentTicket.user_id) {
-                      createNotification(adminId, ticketId, 
-                        `Status of ticket #${ticketId} has been updated to ${statusName}.`, 
-                        (err) => {
-                          if (err) console.error(`Failed to notify admin ${adminId}:`, err.message);
-                        }
-                      );
-                    }
-                  });
-                }
-              });
-            })
-          }
-          
-          // Notify new technician if assigned
-          if (technician_id !== undefined && technician_id !== currentTicket.technician_id) {
-            notifications.push({
-              userId: technician_id,
-              message: `You have been assigned to ticket #${ticketId}.`
-            });
-          }
-          
-          // Send all notifications
-          notifications.forEach(notification => {
-            createNotification(notification.userId, ticketId, notification.message, (err) => {
-              if (err) console.error(`Failed to notify user ${notification.userId}:`, err.message);
-            });
-          });
-          
-          res.json({ message: 'Ticket updated successfully.' });
-        }
-      });
-    })
-    .catch(err => {
-      if (err.message === 'Ticket not found') {
-        res.status(404).json({ message: 'Ticket not found.' });
+const getCurrentTicket = (ticketId) => {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM tickets WHERE id = ?', [ticketId], (err, row) => {
+      if (err) {
+        reject(err);
+      } else if (!row) {
+        reject(new Error('Ticket not found'));
       } else {
-        console.error('Error getting current ticket:', err.message);
-        res.status(500).json({ message: 'Error updating ticket.' });
+        resolve(row);
       }
     });
+  });
+};
+
+app.put('/tickets/:id', authenticateToken, canUpdateTicket, async (req, res) => {
+  const { department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status_id, technician_id } = req.body;
+  const ticketId = req.params.id;
+
+  try {
+    const currentTicket = await getCurrentTicket(ticketId);
+
+    // Validate IDs if provided
+    if (!validateId(res, technician_id, 'technician_id')) return;
+    if (!validateId(res, user_id, 'user_id')) return;
+    if (!validateId(res, asset_id, 'asset_id')) return;
+    if (!validateId(res, pc_part_id, 'pc_part_id')) return;
+    if (!validateId(res, subcategory_id, 'subcategory_id')) return;
+    if (!validateId(res, department_id, 'department_id')) return;
+    if (!validateId(res, category_id, 'category_id')) return;
+    if (!validateId(res, status_id, 'status_id')) return;
+    
+    // Build the query dynamically based on provided fields
+    let fields = [];
+    let values = [];
+    
+    if (department_id !== undefined) {
+      fields.push('department_id = ?');
+      values.push(department_id);
+    }
+    
+    if (category_id !== undefined) {
+      fields.push('category_id = ?');
+      values.push(category_id);
+    }
+    
+    if (subcategory_id !== undefined) {
+      fields.push('subcategory_id = ?');
+      values.push(subcategory_id);
+    }
+    
+    if (user_id !== undefined) {
+      fields.push('user_id = ?');
+      values.push(user_id);
+    }
+    
+    if (asset_id !== undefined) {
+      fields.push('asset_id = ?');
+      values.push(asset_id);
+    }
+    
+    if (pc_part_id !== undefined) {
+      fields.push('pc_part_id = ?');
+      values.push(pc_part_id);
+    }
+    
+    if (description !== undefined) {
+      fields.push('description = ?');
+      values.push(description);
+    }
+    
+    if (resolution !== undefined) {
+      fields.push('resolution = ?');
+      values.push(resolution);
+    }
+    
+    if (status_id !== undefined) {
+      fields.push('status_id = ?');
+      values.push(status_id);
+    }
+    
+    if (technician_id !== undefined) {
+      fields.push('technician_id = ?');
+      values.push(technician_id);
+    }
+    
+    // Always update the updated_at timestamp
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    
+    if (fields.length === 1) { // Only updated_at
+      return res.status(400).json({ message: 'No fields to update.' });
+    }
+    
+    const query = `UPDATE tickets SET ${fields.join(', ')} WHERE id = ?`;
+    values.push(ticketId);
+    
+    db.run(query, values, function(err) {
+      if (err) {
+        console.error('Error updating ticket:', err.message);
+        return res.status(500).json({ message: 'Error updating ticket.' });
+      } else if (this.changes === 0) {
+        return res.status(404).json({ message: 'Ticket not found.' });
+      } else {
+        // NOTIFICATION LOGIC
+        // Status change
+        if (status_id !== undefined && status_id !== currentTicket.status_id) {
+          db.get('SELECT name FROM statuses WHERE id = ?', [status_id], (err, status) => {
+            if (err) return;
+            const statusName = status ? status.name : 'updated';
+            const message = `Status of your ticket #${ticketId} has been updated to ${statusName}.`;
+            if (currentTicket.user_id) {
+              createNotification(currentTicket.user_id, ticketId, message, (err) => {
+                if (err) console.error(`Failed to notify user ${currentTicket.user_id}:`, err.message);
+              });
+            }
+          });
+        }
+
+        // Technician change
+        if (technician_id !== undefined && technician_id !== currentTicket.technician_id) {
+          if (currentTicket.technician_id) {
+            const message = `You have been unassigned from ticket #${ticketId}.`;
+            createNotification(currentTicket.technician_id, ticketId, message, (err) => {
+              if (err) console.error(`Failed to notify user ${currentTicket.technician_id}:`, err.message);
+            });
+          }
+          if (technician_id) {
+            const message = `You have been assigned to ticket #${ticketId}.`;
+            createNotification(technician_id, ticketId, message, (err) => {
+              if (err) console.error(`Failed to notify user ${technician_id}:`, err.message);
+            });
+          }
+        }
+
+        return res.json({ message: 'Ticket updated successfully.' });
+      }
+    });
+  } catch (error) {
+    if (error.message === 'Ticket not found') {
+      return res.status(404).json({ message: 'Ticket not found.' });
+    } else {
+      console.error('Error updating ticket:', error.message);
+      return res.status(500).json({ message: 'Error updating ticket.' });
+    }
+  }
 });
 
 // Notification Endpoints

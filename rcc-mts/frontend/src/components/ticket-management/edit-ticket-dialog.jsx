@@ -479,7 +479,7 @@ export function EditTicketDialog({ ticket, fetchTickets, departments, categories
           </div>
 
           {/* Resolution - Conditionally rendered */}
-          {selectedStatusId === statuses.find(s => s.name === 'For Approval')?.id.toString() && (
+          {(selectedStatusId === statuses.find(s => s.name === 'For Approval')?.id.toString() || selectedStatusId === statuses.find(s => s.name === 'Closed')?.id.toString()) && (
             <div>
               <Label className="block mb-2">Resolution</Label>
               <textarea

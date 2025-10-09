@@ -104,6 +104,8 @@ export function ViewTicketDialog({ ticketId, open, onOpenChange }) {
                       ? "bg-yellow-100 text-yellow-800"
                       : ticket.status_name === "Closed"
                       ? "bg-green-100 text-green-800"
+                      : ticket.status_name === "For Approval"
+                      ? "bg-purple-100 text-purple-800"
                       : "bg-gray-100 text-gray-800"
                   }`}
                 >

@@ -319,6 +319,8 @@ export function FacultyStaffPage() {
                                     ? "bg-yellow-100 text-yellow-800"
                                     : ticket.status_name === "Closed"
                                     ? "bg-green-100 text-green-800"
+                                    : ticket.status_name === "For Approval"
+                                    ? "bg-purple-100 text-purple-800"
                                     : "bg-gray-100 text-gray-800"
                                 }`}
                               >
@@ -337,26 +339,24 @@ export function FacultyStaffPage() {
                               >
                                 <Eye className="h-4 w-4 text-blue-600" />
                               </Button>
-                              {ticket.status_name === 'For Approval' && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="rounded-full"
-                                    onClick={() => handleStatusUpdate(ticket.id, 'Closed')}
-                                  >
-                                    <Check className="h-4 w-4 text-green-600" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="rounded-full"
-                                    onClick={() => handleStatusUpdate(ticket.id, 'Open')}
-                                  >
-                                    <X className="h-4 w-4 text-red-600" />
-                                  </Button>
-                                </>
-                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full"
+                                onClick={() => handleStatusUpdate(ticket.id, 'Closed')}
+                                disabled={ticket.status_name !== 'For Approval'}
+                              >
+                                <Check className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full"
+                                onClick={() => handleStatusUpdate(ticket.id, 'Open')}
+                                disabled={ticket.status_name !== 'For Approval'}
+                              >
+                                <X className="h-4 w-4 text-red-600" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))

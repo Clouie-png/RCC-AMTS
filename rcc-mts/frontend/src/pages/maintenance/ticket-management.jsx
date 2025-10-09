@@ -126,8 +126,8 @@ export function TicketManagement() {
   const handleEditTicket = (ticket) => {
     setSelectedTicket(ticket);
     setEditStatus(ticket.status_name || "");
-    // Only initialize resolution if status is For Approval
-    setEditResolution(ticket.status_name === "For Approval" ? (ticket.resolution || "") : "");
+    // Only initialize resolution if status is For Approval or Closed
+    setEditResolution(ticket.status_name === "For Approval" || ticket.status_name === "Closed" ? (ticket.resolution || "") : "");
     setEditDialogOpen(true);
   };
 
@@ -143,8 +143,8 @@ export function TicketManagement() {
         status: newStatus,
       };
 
-      // Only include resolution if status is Closed
-      if (newStatus === "Closed") {
+      // Only include resolution if status is Closed or For Approval
+      if (newStatus === "Closed" || newStatus === "For Approval") {
         updateData.resolution = editResolution;
       }
 
@@ -159,12 +159,12 @@ export function TicketManagement() {
       // Update local state
       setTickets(tickets.map(ticket => 
         ticket.id === selectedTicket.id 
-          ? { ...ticket, status_name: newStatus, resolution: newStatus === "Closed" ? editResolution : ticket.resolution } 
+          ? { ...ticket, status_name: newStatus, resolution: (newStatus === "Closed" || newStatus === "For Approval") ? editResolution : ticket.resolution } 
           : ticket
       ));
 
-      // If status changed to "In Progress" or "Closed", send a notification
-      if ((newStatus === "In Progress" || newStatus === "Closed") && newStatus !== originalStatus) {
+      // If status changed to "In Progress", "Closed", or "For Approval", send a notification
+      if ((newStatus === "In Progress" || newStatus === "Closed" || newStatus === "For Approval") && newStatus !== originalStatus) {
         const message = `Ticket #${selectedTicket.id} has been updated to "${newStatus}" by ${user.name}.`;
         try {
           await axios.post(
@@ -296,6 +296,8 @@ export function TicketManagement() {
                                   ? "bg-yellow-100 text-yellow-800"
                                   : ticket.status_name === "Closed"
                                   ? "bg-green-100 text-green-800"
+                                  : ticket.status_name === "For Approval"
+                                  ? "bg-purple-100 text-purple-800"
                                   : "bg-gray-100 text-gray-800"
                               }`}
                             >
@@ -585,7 +587,7 @@ export function TicketManagement() {
                   <SelectContent>
                     <SelectItem value="Open">Open</SelectItem>
                     <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Closed">Closed</SelectItem>
+                    <SelectItem value="For Approval">For Approval</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
