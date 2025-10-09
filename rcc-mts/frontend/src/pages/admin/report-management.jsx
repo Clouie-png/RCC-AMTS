@@ -235,7 +235,7 @@ export function ReportManagement() {
       
       // Format data for export
       const data = filteredTickets.map(ticket => ({
-        "Ticket ID": `000-000-000-${String(ticket.id).padStart(3, "0")}`,
+        "Ticket ID": `${String(ticket.id).padStart(3, "0")}`,
         "Department": ticket.department_name || "N/A",
         "Category": ticket.category_name || "N/A",
         "Sub-Category": ticket.subcategory_name || "N/A",
@@ -299,7 +299,7 @@ export function ReportManagement() {
         worksheet.addRow([]);
 
       // ✅ Table headers
-        const headers = Object.keys(data[0]);
+        const headers = Object.keys(filteredTickets[0]).map(key => key.toUpperCase());
         const headerRow = worksheet.addRow(headers);
 
       headerRow.eachCell(cell => {
@@ -319,8 +319,8 @@ export function ReportManagement() {
       });
 
       // ✅ Add table data
-      data.forEach(d => {
-        const row = worksheet.addRow(Object.values(d));
+      filteredTickets.forEach(ticket => {
+        const row = worksheet.addRow(Object.values(ticket));
         row.eachCell(cell => {
           cell.border = {
             top: { style: "thin" },

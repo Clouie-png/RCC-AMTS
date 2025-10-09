@@ -44,7 +44,6 @@ import { API_BASE_URL } from '@/config/api'; // Import the centralized API URL
 export function TicketManagement() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
-  const [statuses, setStatuses] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -58,36 +57,30 @@ export function TicketManagement() {
   const [editResolution, setEditResolution] = useState("");
 
   useEffect(() => {
-    const fetchMaintenanceData = async () => {
+    const fetchTickets = async () => {
       if (!user?.token) return;
 
       try {
         setLoading(true);
-        const [ticketsRes, statusesRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/tickets`, {
-            headers: { Authorization: `Bearer ${user.token}` },
-          }),
-          axios.get(`${API_BASE_URL}/statuses`, {
-            headers: { Authorization: `Bearer ${user.token}` },
-          }),
-        ]);
+        const response = await axios.get(`${API_BASE_URL}/tickets`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
 
         // Filter tickets assigned to the current maintenance user
-        const assignedTickets = ticketsRes.data.filter(
+        const assignedTickets = response.data.filter(
           (ticket) => ticket.technician_id === user.id
         );
 
         setTickets(assignedTickets);
-        setStatuses(statusesRes.data);
       } catch (error) {
-        console.error("Error fetching maintenance data:", error);
+        console.error("Error fetching tickets:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMaintenanceData();
-  }, [user?.token, user?.id]);
+    fetchTickets();
+  }, [user?.token]);
 
   const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
@@ -146,18 +139,12 @@ export function TicketManagement() {
     const newStatus = editStatus;
 
     try {
-      const status = statuses.find(s => s.name === newStatus);
-      if (!status) {
-        alert("Invalid status selected.");
-        return;
-      }
-
       const updateData = {
-        status_id: status.id,
+        status: newStatus,
       };
 
-      // Only include resolution if status is For Approval
-      if (newStatus === "For Approval") {
+      // Only include resolution if status is Closed
+      if (newStatus === "Closed") {
         updateData.resolution = editResolution;
       }
 
@@ -172,12 +159,12 @@ export function TicketManagement() {
       // Update local state
       setTickets(tickets.map(ticket => 
         ticket.id === selectedTicket.id 
-          ? { ...ticket, status_name: newStatus, status_id: status.id, resolution: newStatus === "For Approval" ? editResolution : ticket.resolution } 
+          ? { ...ticket, status_name: newStatus, resolution: newStatus === "Closed" ? editResolution : ticket.resolution } 
           : ticket
       ));
 
-      // If status changed to "In Progress" or "For Approval", send a notification
-      if ((newStatus === "In Progress" || newStatus === "For Approval") && newStatus !== originalStatus) {
+      // If status changed to "In Progress" or "Closed", send a notification
+      if ((newStatus === "In Progress" || newStatus === "Closed") && newStatus !== originalStatus) {
         const message = `Ticket #${selectedTicket.id} has been updated to "${newStatus}" by ${user.name}.`;
         try {
           await axios.post(
@@ -307,8 +294,6 @@ export function TicketManagement() {
                                   ? "bg-blue-100 text-blue-800"
                                   : ticket.status_name === "In Progress"
                                   ? "bg-yellow-100 text-yellow-800"
-                                  : ticket.status_name === "For Approval"
-                                  ? "bg-orange-100 text-orange-800"
                                   : ticket.status_name === "Closed"
                                   ? "bg-green-100 text-green-800"
                                   : "bg-gray-100 text-gray-800"
@@ -513,8 +498,6 @@ export function TicketManagement() {
                         ? "bg-blue-100 text-blue-800"
                         : selectedTicket.status_name === "In Progress"
                         ? "bg-yellow-100 text-yellow-800"
-                        : selectedTicket.status_name === "For Approval"
-                        ? "bg-orange-100 text-orange-800"
                         : selectedTicket.status_name === "Closed"
                         ? "bg-green-100 text-green-800"
                         : "bg-gray-100 text-gray-800"
@@ -584,8 +567,6 @@ export function TicketManagement() {
                         ? "bg-blue-100 text-blue-800"
                         : selectedTicket.status_name === "In Progress"
                         ? "bg-yellow-100 text-yellow-800"
-                        : selectedTicket.status_name === "For Approval"
-                        ? "bg-orange-100 text-orange-800"
                         : selectedTicket.status_name === "Closed"
                         ? "bg-green-100 text-green-800"
                         : "bg-gray-100 text-gray-800"
@@ -604,18 +585,18 @@ export function TicketManagement() {
                   <SelectContent>
                     <SelectItem value="Open">Open</SelectItem>
                     <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="For Approval">For Approval</SelectItem>
+                    <SelectItem value="Closed">Closed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              {editStatus === "For Approval" && (
+              {editStatus === "Closed" && (
                 <div className="grid grid-cols-4 items-start gap-4">
                   <label className="text-right font-medium">Resolution:</label>
                   <Textarea
                     className="col-span-3 min-h-[120px]"
                     value={editResolution}
                     onChange={(e) => setEditResolution(e.target.value)}
-                    placeholder="Enter resolution details for approval..."
+                    placeholder="Enter resolution details..."
                   />
                 </div>
               )}

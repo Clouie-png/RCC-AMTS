@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Eye, Bell, Check, X } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useNotification } from "@/context/NotificationContext";
 import { ViewTicketDialog } from "@/components/ticket-management";
@@ -74,33 +74,6 @@ export function FacultyStaffPage() {
     setViewTicketDialogOpen(true);
   };
 
-  const fetchTickets = useCallback(async () => {
-    if (!user?.token) return;
-
-    try {
-      setLoading(true);
-      const [ticketsRes, statusesRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/tickets`, {
-          headers: { Authorization: `Bearer ${user.token}` },
-        }),
-        axios.get(`${API_BASE_URL}/statuses`, {
-          headers: { Authorization: `Bearer ${user.token}` },
-        }),
-      ]);
-
-      // Filter tickets to only show those created by the current user
-      const userTickets = ticketsRes.data.filter(ticket => 
-        ticket.user_id === user.id
-      );
-      setTickets(userTickets);
-      setStatuses(statusesRes.data);
-    } catch (error) {
-      console.error("Error fetching tickets:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.token, user?.id]);
-
   const handleStatusUpdate = async (ticketId, statusName) => {
     try {
       const status = statuses.find(s => s.name === statusName);
@@ -117,8 +90,35 @@ export function FacultyStaffPage() {
   };
 
   useEffect(() => {
+    const fetchTickets = async () => {
+      if (!user?.token) return;
+
+      try {
+        setLoading(true);
+        const [ticketsRes, statusesRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/tickets`, {
+            headers: { Authorization: `Bearer ${user.token}` },
+          }),
+          axios.get(`${API_BASE_URL}/statuses`, {
+            headers: { Authorization: `Bearer ${user.token}` },
+          }),
+        ]);
+
+        // Filter tickets to only show those created by the current user
+        const userTickets = ticketsRes.data.filter(ticket => 
+          ticket.user_id === user.id
+        );
+        setTickets(userTickets);
+        setStatuses(statusesRes.data);
+      } catch (error) {
+        console.error("Error fetching tickets:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchTickets();
-  }, [fetchTickets]);
+  }, [user?.token, user?.id]);
 
   const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
@@ -337,24 +337,26 @@ export function FacultyStaffPage() {
                               >
                                 <Eye className="h-4 w-4 text-blue-600" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="rounded-full"
-                                onClick={() => handleStatusUpdate(ticket.id, 'Closed')}
-                                disabled={ticket.status_name !== 'For Approval'}
-                              >
-                                <Check className="h-4 w-4 text-green-600" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="rounded-full"
-                                onClick={() => handleStatusUpdate(ticket.id, 'Open')}
-                                disabled={ticket.status_name !== 'For Approval'}
-                              >
-                                <X className="h-4 w-4 text-red-600" />
-                              </Button>
+                              {ticket.status_name === 'For Approval' && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="rounded-full"
+                                    onClick={() => handleStatusUpdate(ticket.id, 'Closed')}
+                                  >
+                                    <Check className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="rounded-full"
+                                    onClick={() => handleStatusUpdate(ticket.id, 'Open')}
+                                  >
+                                    <X className="h-4 w-4 text-red-600" />
+                                  </Button>
+                                </>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))
