@@ -56,6 +56,33 @@ export function FacultyStaffPage() {
 
   const unreadNotifications = notifications.filter((n) => !n.is_read);
 
+  const fetchTickets = async () => {
+    if (!user?.token) return;
+
+    try {
+      setLoading(true);
+      const [ticketsRes, statusesRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/tickets`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        }),
+        axios.get(`${API_BASE_URL}/statuses`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        }),
+      ]);
+
+      // Filter tickets to only show those created by the current user
+      const userTickets = ticketsRes.data.filter(ticket => 
+        ticket.user_id === user.id
+      );
+      setTickets(userTickets);
+      setStatuses(statusesRes.data);
+    } catch (error) {
+      console.error("Error fetching tickets:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleNotificationClick = (notification) => {
     // Mark as read
     if (!notification.is_read) {
@@ -90,34 +117,19 @@ export function FacultyStaffPage() {
   };
 
   useEffect(() => {
-    const fetchTickets = async () => {
-      if (!user?.token) return;
+    fetchTickets();
 
-      try {
-        setLoading(true);
-        const [ticketsRes, statusesRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/tickets`, {
-            headers: { Authorization: `Bearer ${user.token}` },
-          }),
-          axios.get(`${API_BASE_URL}/statuses`, {
-            headers: { Authorization: `Bearer ${user.token}` },
-          }),
-        ]);
-
-        // Filter tickets to only show those created by the current user
-        const userTickets = ticketsRes.data.filter(ticket => 
-          ticket.user_id === user.id
-        );
-        setTickets(userTickets);
-        setStatuses(statusesRes.data);
-      } catch (error) {
-        console.error("Error fetching tickets:", error);
-      } finally {
-        setLoading(false);
+    const handleStorageChange = (e) => {
+      if (e.key === 'ticketsUpdated') {
+        fetchTickets();
       }
     };
 
-    fetchTickets();
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, [user?.token, user?.id]);
 
   const filteredTickets = tickets.filter((ticket) => {

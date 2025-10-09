@@ -55,30 +55,46 @@ export function TicketManagement() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [editStatus, setEditStatus] = useState("");
   const [editResolution, setEditResolution] = useState("");
+  const [statuses, setStatuses] = useState([]);
 
   useEffect(() => {
-    const fetchTickets = async () => {
+    const fetchStatuses = async () => {
       if (!user?.token) return;
-
       try {
-        setLoading(true);
-        const response = await axios.get(`${API_BASE_URL}/tickets`, {
+        const response = await axios.get(`${API_BASE_URL}/statuses`, {
           headers: { Authorization: `Bearer ${user.token}` },
         });
-
-        // Filter tickets assigned to the current maintenance user
-        const assignedTickets = response.data.filter(
-          (ticket) => ticket.technician_id === user.id
-        );
-
-        setTickets(assignedTickets);
+        setStatuses(response.data);
       } catch (error) {
-        console.error("Error fetching tickets:", error);
-      } finally {
-        setLoading(false);
+        console.error("Error fetching statuses:", error);
       }
     };
+    fetchStatuses();
+  }, [user?.token]);
 
+  const fetchTickets = async () => {
+    if (!user?.token) return;
+
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API_BASE_URL}/tickets`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+
+      // Filter tickets assigned to the current maintenance user
+      const assignedTickets = response.data.filter(
+        (ticket) => ticket.technician_id === user.id
+      );
+
+      setTickets(assignedTickets);
+    } catch (error) {
+      console.error("Error fetching tickets:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchTickets();
   }, [user?.token]);
 
@@ -139,8 +155,14 @@ export function TicketManagement() {
     const newStatus = editStatus;
 
     try {
+      const status = statuses.find(s => s.name === newStatus);
+      if (!status) {
+        alert("Invalid status");
+        return;
+      }
+
       const updateData = {
-        status: newStatus,
+        status_id: status.id,
       };
 
       // Only include resolution if status is Closed or For Approval
@@ -155,13 +177,6 @@ export function TicketManagement() {
           headers: { Authorization: `Bearer ${user.token}` },
         }
       );
-
-      // Update local state
-      setTickets(tickets.map(ticket => 
-        ticket.id === selectedTicket.id 
-          ? { ...ticket, status_name: newStatus, resolution: (newStatus === "Closed" || newStatus === "For Approval") ? editResolution : ticket.resolution } 
-          : ticket
-      ));
 
       // If status changed to "In Progress", "Closed", or "For Approval", send a notification
       if ((newStatus === "In Progress" || newStatus === "Closed" || newStatus === "For Approval") && newStatus !== originalStatus) {
@@ -192,6 +207,12 @@ export function TicketManagement() {
       
       // Show success message
       alert("Ticket updated successfully!");
+
+      // Signal that tickets have been updated
+      localStorage.setItem('ticketsUpdated', Date.now());
+
+      // Refetch tickets
+      fetchTickets();
     } catch (error) {
       console.error("Error updating ticket:", error);
       alert("Failed to update ticket. Please try again.");
@@ -591,7 +612,7 @@ export function TicketManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              {editStatus === "Closed" && (
+              {(editStatus === "Closed" || editStatus === "For Approval") && (
                 <div className="grid grid-cols-4 items-start gap-4">
                   <label className="text-right font-medium">Resolution:</label>
                   <Textarea

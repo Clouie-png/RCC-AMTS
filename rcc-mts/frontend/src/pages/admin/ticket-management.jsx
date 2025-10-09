@@ -126,7 +126,19 @@ export function TicketManagement() {
 
   useEffect(() => {
     fetchAllData();
-  }, [fetchAllData]);
+
+    const handleStorageChange = (e) => {
+      if (e.key === 'ticketsUpdated') {
+        fetchTickets();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [fetchAllData, fetchTickets]);
 
   const filteredTickets = useMemo(() => {
     if (!Array.isArray(tickets) || tickets.length === 0) return [];
