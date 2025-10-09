@@ -131,7 +131,7 @@ export function ViewTicketDialog({ ticketId, open, onOpenChange }) {
               <label className="text-right font-medium">Description:</label>
               <div className="col-span-3">{ticket.description || "N/A"}</div>
             </div>
-            {ticket.resolution && (
+            {(ticket.status_name === 'For Approval' || ticket.status_name === 'Closed') && ticket.resolution && (
               <div className="grid grid-cols-4 items-start gap-4">
                 <label className="text-right font-medium">Resolution:</label>
                 <div className="col-span-3">{ticket.resolution}</div>

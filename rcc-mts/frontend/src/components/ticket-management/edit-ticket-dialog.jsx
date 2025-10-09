@@ -25,9 +25,10 @@ import { useTicketFilters } from "@/hooks";
 // const API_BASE_URL = "http://localhost:3001";
 import { API_BASE_URL } from '@/config/api'; // Import the centralized API URL
 
-export function EditTicketDialog({ ticket, fetchTickets, departments, categories, subCategories, users, assets, pcParts, statuses }) {
+export function EditTicketDialog({ ticket, fetchTickets, departments, categories, subCategories, users, assets, pcParts }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [statuses, setStatuses] = useState([]);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState(ticket?.department_id?.toString() || "");
   const [selectedCategoryId, setSelectedCategoryId] = useState(ticket?.category_id?.toString() || "");
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState(ticket?.subcategory_id?.toString() || "");
@@ -35,10 +36,28 @@ export function EditTicketDialog({ ticket, fetchTickets, departments, categories
   const [selectedAssetId, setSelectedAssetId] = useState(ticket?.asset_id?.toString() || "");
   const [selectedPcPartId, setSelectedPcPartId] = useState(ticket?.pc_part_id?.toString() || "");
   const [description, setDescription] = useState(ticket?.description || "");
+  const [resolution, setResolution] = useState(ticket?.resolution || "");
   const [selectedStatusId, setSelectedStatusId] = useState(ticket?.status_id?.toString() || "");
   const [selectedTechnicianId, setSelectedTechnicianId] = useState(ticket?.technician_id?.toString() || "");
   const [assetSpecificPcParts, setAssetSpecificPcParts] = useState([]);
   const isSettingAssetRef = useRef(false);
+
+  useEffect(() => {
+    const fetchStatuses = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/statuses`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        setStatuses(response.data);
+      } catch (error) {
+        console.error("Error fetching statuses:", error);
+      }
+    };
+
+    if (open) {
+      fetchStatuses();
+    }
+  }, [open, user.token]);
 
   const {
     filteredCategories,
@@ -153,6 +172,10 @@ export function EditTicketDialog({ ticket, fetchTickets, departments, categories
       
       if (description !== (ticket?.description || "")) {
         updateData.description = description || null;
+      }
+
+      if (resolution !== (ticket?.resolution || "")) {
+        updateData.resolution = resolution || null;
       }
       
       if (newStatusId !== originalStatusId) {
@@ -433,7 +456,9 @@ export function EditTicketDialog({ ticket, fetchTickets, departments, categories
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
-                {statuses?.map((stat) => (
+                {statuses
+                  ?.filter((stat) => user.role !== "maintenance" || stat.name !== "Closed")
+                  .map((stat) => (
                   <SelectItem key={stat.id} value={stat.id.toString()}>
                     {stat.name}
                   </SelectItem>
@@ -452,6 +477,19 @@ export function EditTicketDialog({ ticket, fetchTickets, departments, categories
               placeholder="Enter ticket description"
             />
           </div>
+
+          {/* Resolution - Conditionally rendered */}
+          {selectedStatusId === statuses.find(s => s.name === 'For Approval')?.id.toString() && (
+            <div>
+              <Label className="block mb-2">Resolution</Label>
+              <textarea
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value)}
+                className="w-full min-h-[80px] p-2 border border-gray-300 rounded-md"
+                placeholder="Enter resolution details"
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter>

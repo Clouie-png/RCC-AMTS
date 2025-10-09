@@ -299,7 +299,7 @@ export function ReportManagement() {
         worksheet.addRow([]);
 
       // ✅ Table headers
-        const headers = Object.keys(filteredTickets[0]).map(key => key.toUpperCase());
+        const headers = Object.keys(data[0]);
         const headerRow = worksheet.addRow(headers);
 
       headerRow.eachCell(cell => {
@@ -319,8 +319,8 @@ export function ReportManagement() {
       });
 
       // ✅ Add table data
-      filteredTickets.forEach(ticket => {
-        const row = worksheet.addRow(Object.values(ticket));
+      data.forEach(d => {
+        const row = worksheet.addRow(Object.values(d));
         row.eachCell(cell => {
           cell.border = {
             top: { style: "thin" },

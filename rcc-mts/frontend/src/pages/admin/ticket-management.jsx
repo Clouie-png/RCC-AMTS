@@ -46,7 +46,6 @@ export function TicketManagement() {
   const [users, setUsers] = useState([]);
   const [assets, setAssets] = useState([]);
   const [pcParts, setPcParts] = useState([]);
-  const [statuses, setStatuses] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
@@ -96,7 +95,6 @@ export function TicketManagement() {
       fetchData('users', setUsers),
       fetchData('assets', setAssets),
       fetchData('pc-parts', setPcParts),
-      fetchData('statuses', setStatuses)
     ]);
   }, [fetchData, fetchTickets]);
 
@@ -205,7 +203,6 @@ export function TicketManagement() {
                 users={users}
                 assets={assets}
                 pcParts={pcParts}
-                statuses={statuses}
               />
               <BulkUploadDialog
                 fetchItems={fetchTickets}
@@ -273,6 +270,7 @@ export function TicketManagement() {
                   <TableBody>
                     {paginatedTickets.length > 0 ? (
                       paginatedTickets.map((ticket) => {
+                        console.log("Ticket in table:", ticket, "User role:", user.role);
                         return (
                           <TableRow key={ticket.id}>
                             <TableCell>{`000-000-000-${String(ticket.id).padStart(
@@ -293,7 +291,6 @@ export function TicketManagement() {
                                 users={users}
                                 assets={assets}
                                 pcParts={pcParts}
-                                statuses={statuses}
                               />
                             </TableCell>
                           </TableRow>

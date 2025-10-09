@@ -44,6 +44,7 @@ import { API_BASE_URL } from '@/config/api'; // Import the centralized API URL
 export function TicketManagement() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
+  const [statuses, setStatuses] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -57,30 +58,36 @@ export function TicketManagement() {
   const [editResolution, setEditResolution] = useState("");
 
   useEffect(() => {
-    const fetchTickets = async () => {
+    const fetchMaintenanceData = async () => {
       if (!user?.token) return;
 
       try {
         setLoading(true);
-        const response = await axios.get(`${API_BASE_URL}/tickets`, {
-          headers: { Authorization: `Bearer ${user.token}` },
-        });
+        const [ticketsRes, statusesRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/tickets`, {
+            headers: { Authorization: `Bearer ${user.token}` },
+          }),
+          axios.get(`${API_BASE_URL}/statuses`, {
+            headers: { Authorization: `Bearer ${user.token}` },
+          }),
+        ]);
 
         // Filter tickets assigned to the current maintenance user
-        const assignedTickets = response.data.filter(
+        const assignedTickets = ticketsRes.data.filter(
           (ticket) => ticket.technician_id === user.id
         );
 
         setTickets(assignedTickets);
+        setStatuses(statusesRes.data);
       } catch (error) {
-        console.error("Error fetching tickets:", error);
+        console.error("Error fetching maintenance data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTickets();
-  }, [user?.token]);
+    fetchMaintenanceData();
+  }, [user?.token, user?.id]);
 
   const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
@@ -90,7 +97,7 @@ export function TicketManagement() {
         ?.toLowerCase()
         .includes(searchQuery.toLowerCase()) ||
       ticket.category_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.status?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.status_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ticket.description?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
@@ -125,9 +132,9 @@ export function TicketManagement() {
   // Handle edit ticket
   const handleEditTicket = (ticket) => {
     setSelectedTicket(ticket);
-    setEditStatus(ticket.status || "");
-    // Only initialize resolution if status is Closed
-    setEditResolution(ticket.status === "Closed" ? (ticket.resolution || "") : "");
+    setEditStatus(ticket.status_name || "");
+    // Only initialize resolution if status is For Approval
+    setEditResolution(ticket.status_name === "For Approval" ? (ticket.resolution || "") : "");
     setEditDialogOpen(true);
   };
 
@@ -135,16 +142,22 @@ export function TicketManagement() {
   const handleSaveChanges = async () => {
     if (!selectedTicket || !user?.token) return;
 
-    const originalStatus = selectedTicket.status;
+    const originalStatus = selectedTicket.status_name;
     const newStatus = editStatus;
 
     try {
+      const status = statuses.find(s => s.name === newStatus);
+      if (!status) {
+        alert("Invalid status selected.");
+        return;
+      }
+
       const updateData = {
-        status: newStatus,
+        status_id: status.id,
       };
 
-      // Only include resolution if status is Closed
-      if (newStatus === "Closed") {
+      // Only include resolution if status is For Approval
+      if (newStatus === "For Approval") {
         updateData.resolution = editResolution;
       }
 
@@ -159,12 +172,12 @@ export function TicketManagement() {
       // Update local state
       setTickets(tickets.map(ticket => 
         ticket.id === selectedTicket.id 
-          ? { ...ticket, status: newStatus, resolution: newStatus === "Closed" ? editResolution : ticket.resolution } 
+          ? { ...ticket, status_name: newStatus, status_id: status.id, resolution: newStatus === "For Approval" ? editResolution : ticket.resolution } 
           : ticket
       ));
 
-      // If status changed to "In Progress" or "Closed", send a notification
-      if ((newStatus === "In Progress" || newStatus === "Closed") && newStatus !== originalStatus) {
+      // If status changed to "In Progress" or "For Approval", send a notification
+      if ((newStatus === "In Progress" || newStatus === "For Approval") && newStatus !== originalStatus) {
         const message = `Ticket #${selectedTicket.id} has been updated to "${newStatus}" by ${user.name}.`;
         try {
           await axios.post(
@@ -290,16 +303,18 @@ export function TicketManagement() {
                           <TableCell className="py-4 px-4">
                             <span
                               className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                                ticket.status === "Open"
+                                ticket.status_name === "Open"
                                   ? "bg-blue-100 text-blue-800"
-                                  : ticket.status === "In Progress"
+                                  : ticket.status_name === "In Progress"
                                   ? "bg-yellow-100 text-yellow-800"
-                                  : ticket.status === "Closed"
+                                  : ticket.status_name === "For Approval"
+                                  ? "bg-orange-100 text-orange-800"
+                                  : ticket.status_name === "Closed"
                                   ? "bg-green-100 text-green-800"
                                   : "bg-gray-100 text-gray-800"
                               }`}
                             >
-                              {ticket.status || "N/A"}
+                              {ticket.status_name || "N/A"}
                             </span>
                           </TableCell>
                           <TableCell className="py-4 px-4">
@@ -494,16 +509,18 @@ export function TicketManagement() {
                 <div className="col-span-3">
                   <span
                     className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                      selectedTicket.status === "Open"
+                      selectedTicket.status_name === "Open"
                         ? "bg-blue-100 text-blue-800"
-                        : selectedTicket.status === "In Progress"
+                        : selectedTicket.status_name === "In Progress"
                         ? "bg-yellow-100 text-yellow-800"
-                        : selectedTicket.status === "Closed"
+                        : selectedTicket.status_name === "For Approval"
+                        ? "bg-orange-100 text-orange-800"
+                        : selectedTicket.status_name === "Closed"
                         ? "bg-green-100 text-green-800"
                         : "bg-gray-100 text-gray-800"
                     }`}
                   >
-                    {selectedTicket.status || "N/A"}
+                    {selectedTicket.status_name || "N/A"}
                   </span>
                 </div>
               </div>
@@ -563,16 +580,18 @@ export function TicketManagement() {
                 <div className="col-span-3">
                   <span
                     className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                      selectedTicket.status === "Open"
+                      selectedTicket.status_name === "Open"
                         ? "bg-blue-100 text-blue-800"
-                        : selectedTicket.status === "In Progress"
+                        : selectedTicket.status_name === "In Progress"
                         ? "bg-yellow-100 text-yellow-800"
-                        : selectedTicket.status === "Closed"
+                        : selectedTicket.status_name === "For Approval"
+                        ? "bg-orange-100 text-orange-800"
+                        : selectedTicket.status_name === "Closed"
                         ? "bg-green-100 text-green-800"
                         : "bg-gray-100 text-gray-800"
                     }`}
                   >
-                    {selectedTicket.status || "N/A"}
+                    {selectedTicket.status_name || "N/A"}
                   </span>
                 </div>
               </div>
@@ -585,18 +604,18 @@ export function TicketManagement() {
                   <SelectContent>
                     <SelectItem value="Open">Open</SelectItem>
                     <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Closed">Closed</SelectItem>
+                    <SelectItem value="For Approval">For Approval</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              {editStatus === "Closed" && (
+              {editStatus === "For Approval" && (
                 <div className="grid grid-cols-4 items-start gap-4">
                   <label className="text-right font-medium">Resolution:</label>
                   <Textarea
                     className="col-span-3 min-h-[120px]"
                     value={editResolution}
                     onChange={(e) => setEditResolution(e.target.value)}
-                    placeholder="Enter resolution details..."
+                    placeholder="Enter resolution details for approval..."
                   />
                 </div>
               )}

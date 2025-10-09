@@ -16,11 +16,7 @@ import { API_BASE_URL } from '@/config/api'; // Import the centralized API URL
 
 export function AdminHome() {
   const { user } = useAuth();
-  const [ticketSummary, setTicketSummary] = useState({
-    Open: 0,
-    "In Progress": 0,
-    Closed: 0,
-  });
+  const [ticketSummary, setTicketSummary] = useState({});
   const [technicianAssignments, setTechnicianAssignments] = useState([]);
   const [departmentTicketsWeekly, setDepartmentTicketsWeekly] = useState([]);
   const [categorySummary, setCategorySummary] = useState([]);
@@ -31,7 +27,7 @@ export function AdminHome() {
       if (!user) return;
       setIsLoading(true);
       try {
-        const [ticketsRes, usersRes, departmentsRes, categoriesRes] =
+        const [ticketsRes, usersRes, departmentsRes, categoriesRes, ticketCountRes] =
           await Promise.all([
             axios.get(`${API_BASE_URL}/tickets`, {
               headers: { Authorization: `Bearer ${user.token}` },
@@ -45,21 +41,19 @@ export function AdminHome() {
             axios.get(`${API_BASE_URL}/categories`, {
               headers: { Authorization: `Bearer ${user.token}` },
             }),
+            axios.get(`${API_BASE_URL}/tickets/count`, {
+              headers: { Authorization: `Bearer ${user.token}` },
+            }),
           ]);
 
         const tickets = ticketsRes.data;
         const users = usersRes.data;
         const departments = departmentsRes.data;
         const categories = categoriesRes.data;
+        const ticketCount = ticketCountRes.data;
 
         // 1. Ticket Summary
-        const summary = { Open: 0, "In Progress": 0, Closed: 0 };
-        tickets.forEach((ticket) => {
-          if (summary[ticket.status] !== undefined) {
-            summary[ticket.status]++;
-          }
-        });
-        setTicketSummary(summary);
+        setTicketSummary(ticketCount);
 
         // 2. Technician Assignments
         const technicians = users.filter((u) => u.role === "maintenance");

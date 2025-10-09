@@ -19,11 +19,7 @@ import { API_BASE_URL } from '@/config/api'; // Import the centralized API URL
 export function MaintenanceHome() {
   const { user } = useAuth();
   const [assignedTickets, setAssignedTickets] = useState([]);
-  const [ticketSummary, setTicketSummary] = useState({
-    Open: 0,
-    "In Progress": 0,
-    Closed: 0,
-  });
+  const [ticketSummary, setTicketSummary] = useState({});
   const [departmentTicketsWeekly, setDepartmentTicketsWeekly] = useState([]);
   const [categorySummary, setCategorySummary] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,11 +30,17 @@ export function MaintenanceHome() {
       setIsLoading(true);
       try {
         // Only fetch tickets endpoint which maintenance users can access
-        const ticketsRes = await axios.get(`${API_BASE_URL}/tickets`, {
-          headers: { Authorization: `Bearer ${user.token}` },
-        });
+        const [ticketsRes, ticketCountRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/tickets`, {
+            headers: { Authorization: `Bearer ${user.token}` },
+          }),
+          axios.get(`${API_BASE_URL}/tickets/count`, {
+            headers: { Authorization: `Bearer ${user.token}` },
+          }),
+        ]);
 
         const tickets = ticketsRes.data;
+        const ticketCount = ticketCountRes.data;
 
         // 1. New Tickets Assigned to You (filter for current user)
         const userAssignedTickets = tickets
@@ -49,13 +51,7 @@ export function MaintenanceHome() {
         setAssignedTickets(userAssignedTickets);
 
         // 2. Ticket Summary (system-wide)
-        const summary = { Open: 0, "In Progress": 0, Closed: 0 };
-        tickets.forEach((ticket) => {
-          if (summary[ticket.status] !== undefined) {
-            summary[ticket.status]++;
-          }
-        });
-        setTicketSummary(summary);
+        setTicketSummary(ticketCount);
 
         // 3. Department Tickets (system-wide)
         // Extract unique departments from tickets

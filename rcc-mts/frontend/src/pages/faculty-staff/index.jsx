@@ -32,8 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Eye, Bell } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Search, Eye, Bell, Check, X } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useNotification } from "@/context/NotificationContext";
 import { ViewTicketDialog } from "@/components/ticket-management";
@@ -46,6 +46,7 @@ export function FacultyStaffPage() {
   const { user, logout } = useAuth();
   const { notifications, markAsRead, markAllAsRead } = useNotification();
   const [tickets, setTickets] = useState([]);
+  const [statuses, setStatuses] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -73,30 +74,51 @@ export function FacultyStaffPage() {
     setViewTicketDialogOpen(true);
   };
 
-  useEffect(() => {
-    const fetchTickets = async () => {
-      if (!user?.token) return;
+  const fetchTickets = useCallback(async () => {
+    if (!user?.token) return;
 
-      try {
-        setLoading(true);
-        const response = await axios.get(`${API_BASE_URL}/tickets`, {
+    try {
+      setLoading(true);
+      const [ticketsRes, statusesRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/tickets`, {
           headers: { Authorization: `Bearer ${user.token}` },
-        });
+        }),
+        axios.get(`${API_BASE_URL}/statuses`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        }),
+      ]);
 
-        // Filter tickets to only show those created by the current user
-        const userTickets = response.data.filter(ticket => 
-          ticket.user_id === user.id
-        );
-        setTickets(userTickets);
-      } catch (error) {
-        console.error("Error fetching tickets:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTickets();
+      // Filter tickets to only show those created by the current user
+      const userTickets = ticketsRes.data.filter(ticket => 
+        ticket.user_id === user.id
+      );
+      setTickets(userTickets);
+      setStatuses(statusesRes.data);
+    } catch (error) {
+      console.error("Error fetching tickets:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [user?.token, user?.id]);
+
+  const handleStatusUpdate = async (ticketId, statusName) => {
+    try {
+      const status = statuses.find(s => s.name === statusName);
+      if (!status) {
+        alert("Invalid status");
+        return;
+      }
+      await axios.put(`${API_BASE_URL}/tickets/${ticketId}`, { status_id: status.id }, { headers: { Authorization: `Bearer ${user.token}` } });
+      fetchTickets();
+    } catch (error) {
+      console.error("Error updating ticket status:", error);
+      alert("Failed to update ticket status.");
+    }
+  };
+
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
 
   const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
@@ -106,7 +128,7 @@ export function FacultyStaffPage() {
         ?.toLowerCase()
         .includes(searchQuery.toLowerCase()) ||
       ticket.category_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.status?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.status_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ticket.technician_name?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
@@ -291,16 +313,16 @@ export function FacultyStaffPage() {
                             <TableCell className="py-4 px-4">
                               <span
                                 className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                                  ticket.status === "Open"
+                                  ticket.status_name === "Open"
                                     ? "bg-blue-100 text-blue-800"
-                                    : ticket.status === "In Progress"
+                                    : ticket.status_name === "In Progress"
                                     ? "bg-yellow-100 text-yellow-800"
-                                    : ticket.status === "Closed"
+                                    : ticket.status_name === "Closed"
                                     ? "bg-green-100 text-green-800"
                                     : "bg-gray-100 text-gray-800"
                                 }`}
                               >
-                                {ticket.status || "N/A"}
+                                {ticket.status_name || "N/A"}
                               </span>
                             </TableCell>
                             <TableCell className="py-4 px-4">
@@ -314,6 +336,24 @@ export function FacultyStaffPage() {
                                 onClick={() => handleViewTicket(ticket)}
                               >
                                 <Eye className="h-4 w-4 text-blue-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full"
+                                onClick={() => handleStatusUpdate(ticket.id, 'Closed')}
+                                disabled={ticket.status_name !== 'For Approval'}
+                              >
+                                <Check className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full"
+                                onClick={() => handleStatusUpdate(ticket.id, 'Open')}
+                                disabled={ticket.status_name !== 'For Approval'}
+                              >
+                                <X className="h-4 w-4 text-red-600" />
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -330,8 +370,7 @@ export function FacultyStaffPage() {
                                 No tickets found
                               </h3>
                               <p className="text-muted-foreground">
-                                Try adjusting your search query or create a new
-                                ticket
+                                Try adjusting your search query.
                               </p>
                             </div>
                           </TableCell>

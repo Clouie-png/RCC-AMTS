@@ -33,10 +33,10 @@ export function AddTicketDialog({
   users,
   assets,
   pcParts,
-  statuses,
 }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [statuses, setStatuses] = useState([]);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState("");
@@ -48,6 +48,23 @@ export function AddTicketDialog({
   const [selectedTechnicianId, setSelectedTechnicianId] = useState("");
   const [assetSpecificPcParts, setAssetSpecificPcParts] = useState([]);
   const isSettingAssetRef = useRef(false);
+
+  useEffect(() => {
+    const fetchStatuses = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/statuses`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        setStatuses(response.data);
+      } catch (error) {
+        console.error("Error fetching statuses:", error);
+      }
+    };
+
+    if (open) {
+      fetchStatuses();
+    }
+  }, [open, user.token]);
 
   const {
     filteredCategories,

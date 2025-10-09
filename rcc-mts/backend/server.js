@@ -219,7 +219,7 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
               return;
             }
             if (row.count === 0) {
-              const statuses = ['Open', 'In Progress', 'Closed'];
+              const statuses = ['Open', 'In Progress', 'Closed', 'For Approval'];
               const stmt = db.prepare("INSERT INTO statuses (name) VALUES (?)");
               statuses.forEach(status => stmt.run(status));
               stmt.finalize(err => {
@@ -235,7 +235,6 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
       });
 
       // Create tickets table
-      db.run(`DROP TABLE IF EXISTS tickets`);
       db.run(`CREATE TABLE IF NOT EXISTS tickets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         department_id INTEGER NOT NULL,
@@ -312,6 +311,29 @@ const isAdminOrMaintenance = (req, res, next) => {
     return res.status(403).json({ message: 'Forbidden: Admins or maintenance staff only.' });
   }
   next();
+};
+
+const canUpdateTicket = (req, res, next) => {
+  const ticketId = req.params.id;
+  const requestingUser = req.user;
+
+  db.get('SELECT user_id FROM tickets WHERE id = ?', [ticketId], (err, ticket) => {
+    if (err || !ticket) {
+      return res.status(404).json({ message: 'Ticket not found.' });
+    }
+
+    // Allow if admin or maintenance
+    if (requestingUser.role === 'admin' || requestingUser.role === 'maintenance') {
+      return next();
+    }
+
+    // Allow if they are the owner of the ticket
+    if (requestingUser.id === ticket.user_id) {
+      return next();
+    }
+
+    return res.status(403).json({ message: 'Forbidden.' });
+  });
 };
 
 // Login endpoint
@@ -760,6 +782,28 @@ app.get('/tickets', authenticateToken, (req, res) => {
   });
 });
 
+app.get('/tickets/count', authenticateToken, (req, res) => {
+  const query = `
+    SELECT s.name, COUNT(t.id) as count
+    FROM statuses s
+    LEFT JOIN tickets t ON s.id = t.status_id
+    GROUP BY s.name
+  `;
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('Error fetching ticket counts:', err.message);
+      res.status(500).json({ message: 'Error fetching ticket counts.' });
+    } else {
+      const counts = rows.reduce((acc, row) => {
+        acc[row.name] = row.count;
+        return acc;
+      }, {});
+      res.json(counts);
+    }
+  });
+});
+
 // Helper function to create notifications
 const createNotification = (userId, ticketId, message, callback) => {
   db.run('INSERT INTO notifications (user_id, ticket_id, message) VALUES (?, ?, ?)', 
@@ -875,7 +919,7 @@ app.post('/tickets', authenticateToken, isAdmin, (req, res) => {
   });
 });
 
-app.put('/tickets/:id', authenticateToken, isAdminOrMaintenance, (req, res) => {
+app.put('/tickets/:id', authenticateToken, canUpdateTicket, (req, res) => {
   const { department_id, category_id, subcategory_id, user_id, asset_id, pc_part_id, description, resolution, status_id, technician_id } = req.body;
   const ticketId = req.params.id;
   
@@ -1145,6 +1189,8 @@ app.put('/notifications/:notificationId/read', authenticateToken, (req, res) => 
 // app.get('*', (req, res) => {
 //   res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 // });
+
+
 
 // Listen on all network interfaces (0.0.0.0) to make it accessible on the network
 app.listen(PORT, '0.0.0.0', () => {
